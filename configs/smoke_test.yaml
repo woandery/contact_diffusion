@@ -1,0 +1,64 @@
+dataset:
+  root_dir: "../contact_dataset_multidex_barrett_ee_n3_dist001_obj500_v0"
+  n_values: [3]
+  num_points: 2048
+  dc: 3
+  load_cmap: false
+  load_qpos: false
+  condition_on_cmap: false
+  normalize: false
+
+model:
+  dc: 3
+  object_input_dim: 3
+  d_model: 64
+  num_layers: 2
+  num_heads: 4
+  ffn_dim: null
+  dropout: 0.0
+  activation: "GELU"
+  use_n_embedding: true
+  use_object_cross_attention: true
+  object_encoder_type: "simple_pointnet"
+
+diffusion:
+  num_timesteps: 10
+  beta_start: 0.0001
+  beta_end: 0.02
+  beta_schedule: "squaredcos_cap_v2"
+  clip_sample: true
+  prediction_type: "epsilon"
+
+loss:
+  lambda_noise: 1.0
+  lambda_chamfer: 1.0
+  lambda_surface: 0.0
+  lambda_diversity: 0.0
+  diversity_sigma: 0.01
+  set_loss_type: "chamfer"
+  chamfer_max_timestep: null
+
+train:
+  batch_size: 2
+  num_workers: 0
+  max_steps: 1
+  lr: 0.0001
+  weight_decay: 0.0
+  grad_clip_norm: 1.0
+  log_every: 1
+  val_every: 100
+  val_batches_per_n: 1
+  save_every: 1
+  device: "cpu"
+  seed: 42
+  output_dir: "outputs/smoke_test"
+  n_sampling: "uniform"
+  random_permute_contacts: true
+  resume: null
+
+sampling:
+  n_values: [3]
+  n_sampling: "uniform"
+  num_steps: 5
+  sampler: "ddpm"
+  project_to_surface: true

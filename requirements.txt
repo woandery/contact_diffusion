@@ -1,0 +1,5 @@
+torch>=2.1
+numpy>=1.24
+omegaconf>=2.3
+diffusers>=0.11
+tensorboard>=2.10

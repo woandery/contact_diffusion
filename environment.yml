@@ -1,0 +1,14 @@
+name: contactdiff
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - numpy
+  - tensorboard
+  - pip:
+      - omegaconf>=2.3
+      - diffusers>=0.11

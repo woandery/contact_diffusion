@@ -1,0 +1,64 @@
+dataset:
+  root_dir: "../contact_dataset_multidex_barrett_ee_n3_dist001_obj500_v0"
+  n_values: [3]
+  num_points: 2048
+  dc: 3
+  load_cmap: false
+  load_qpos: false
+  condition_on_cmap: false
+  normalize: false
+
+model:
+  dc: 3
+  object_input_dim: 3
+  d_model: 256
+  num_layers: 6
+  num_heads: 8
+  ffn_dim: null
+  dropout: 0.0
+  activation: "GELU"
+  use_n_embedding: true
+  use_object_cross_attention: true
+  object_encoder_type: "simple_pointnet"
+
+diffusion:
+  num_timesteps: 1000
+  beta_start: 0.0001
+  beta_end: 0.02
+  beta_schedule: "squaredcos_cap_v2"
+  clip_sample: true
+  prediction_type: "epsilon"
+
+loss:
+  lambda_noise: 1.0
+  lambda_chamfer: 1.0
+  lambda_surface: 0.0
+  lambda_diversity: 0.0
+  diversity_sigma: 0.01
+  set_loss_type: "chamfer"
+  chamfer_max_timestep: 200
+
+train:
+  batch_size: 16
+  num_workers: 0
+  max_steps: 50000
+  lr: 0.0001
+  weight_decay: 0.0
+  grad_clip_norm: 1.0
+  log_every: 100
+  val_every: 1000
+  val_batches_per_n: 10
+  save_every: 5000
+  device: "cuda"
+  seed: 42
+  output_dir: "outputs/contact_diffusion_barrett_n3"
+  n_sampling: "uniform"
+  random_permute_contacts: true
+  resume: null
+
+sampling:
+  n_values: [3]
+  n_sampling: "uniform"
+  num_steps: 50
+  sampler: "ddpm"
+  project_to_surface: true
