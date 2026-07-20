@@ -56,6 +56,25 @@ train:
   random_permute_contacts: true
   resume: null
 
+validation:
+  grasp_quality:
+    enabled: true
+    batches_per_n: 1
+    samples_per_batch: 4
+    num_steps: 20
+    sampler: "ddim"
+    max_projection_distance: null
+    max_projection_distance_factor: 2.0
+    require_precomputed_normals: false
+    normal_k_neighbors: 30
+    normal_viewpoint: null
+    friction_coef: 0.5
+    num_cone_faces: 8
+    soft_fingers: true
+    finger_radius: 0.005
+    torque_scaling: null
+    fixed_total_force_budget: true
+
 sampling:
   n_values: [3]
   n_sampling: "uniform"

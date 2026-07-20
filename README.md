@@ -131,6 +131,73 @@ python sample.py \
   --output_dir outputs/samples
 ```
 
+## Multi-contact grasp quality
+
+`MultiContactGraspEvaluator` scores diffusion-generated `(N, 3)` contact sets
+without converting them to a parallel-jaw grasp. It supports arbitrary `N >= 2`,
+SDF surface/normal validation, hard- and soft-finger wrench spaces,
+Ferrari-Canny epsilon, force closure, target-wrench metrics, and reproducible
+Monte Carlo evaluation:
+
+```python
+from utils import MultiContactGraspEvaluator
+
+quality = MultiContactGraspEvaluator.evaluate(obj, generated_contacts,
+                                              soft_fingers=True)
+robust = MultiContactGraspEvaluator.evaluate_robust(
+    obj, generated_contacts, soft_fingers=True, num_samples=100, seed=7)
+training_label = quality["epsilon"] if quality["valid"] else 0.0
+```
+
+See `examples/evaluate_multicontact_grasp.py` for Dex-Net object loading and
+2/3/5-contact labels. Nonzero point noise normally moves points off the SDF
+surface; robust evaluation therefore requires an explicit trusted
+`surface_projection_fn`, or records those samples as invalid.
+
+For point-cloud training data, store an outward unit normal for every point and
+evaluate the exact indexed contacts:
+
+```python
+from utils import PointCloudMultiContactGraspEvaluator
+
+quality = PointCloudMultiContactGraspEvaluator.evaluate(
+    batch["object_pc"][i].cpu().numpy(),
+    batch["selected_indices"][i].cpu().numpy(),
+    batch["object_normals"][i].cpu().numpy(),
+    soft_fingers=True,
+)
+```
+
+This path always gathers `object_pc[selected_indices]`; it does not project a
+free 3-D prediction with nearest-neighbour search. Optional `object_normals`
+fields are loaded and collated by the dataset readers. See
+`examples/evaluate_point_cloud_contacts.py` for one-time PCA normal estimation,
+robust evaluation, and scalar diffusion labels. Centroid-based normal
+orientation and point-cloud-mean COM assume a complete object cloud; provide
+pre-oriented normals and a physical COM for partial or single-view clouds.
+Dataset `selected_indices` label the dataset contacts, not arbitrary continuous
+diffusion predictions. Do not use ground-truth indices to score a different
+predicted contact set; generated contacts must themselves be discrete indices,
+or must first pass through an explicit, separately validated surface projector.
+
+Training validation now performs that projection explicitly. It generates a
+small deterministic DDIM sample, uses unique Hungarian point-cloud assignment,
+rejects matches beyond the configured point-spacing gate, and writes the
+following TensorBoard series per contact count and as an n-mean:
+
+- `val/grasp_projection_valid_rate_*`
+- `val/grasp_quality_valid_rate_*`
+- `val/grasp_force_closure_rate_*` and its valid-only variant
+- `val/grasp_epsilon_mean_*`, valid-only mean, and valid-only p10
+- projection-distance mean/max and precomputed-normal usage rate
+
+Configure its cost and contact model under `validation.grasp_quality`. The
+all-prediction closure/epsilon metrics count rejected predictions as zero;
+valid-only metrics are diagnostic and should not be used alone for checkpoint
+selection. If `object_normals` are absent, validation estimates them with local
+PCA; set `require_precomputed_normals: true` when centroid-oriented normals are
+not appropriate for partial point clouds.
+
 ## Notes
 
 - PointNet++ is optional. Use `simple_pointnet` when the CUDA extension is not installed.

@@ -22,6 +22,7 @@ from datasets.contact_dataset import GroupedContactDataLoaders, build_grouped_co
 from models import ContactDiffusion
 from models.diffusion import predict_x0_from_eps, random_permute_contact_set
 from models.losses import compute_contact_losses
+from utils.validation_grasp_quality import evaluate_generated_contact_batch
 
 
 def load_config(path: str):
@@ -210,17 +211,35 @@ def validate(model, val_loaders, cfg, device, writer=None, step: int = 0):
     results = {}
     mean_accum = {}
     mean_count = 0
+    validation_cfg = getattr(cfg, "validation", None)
+    grasp_quality_cfg = (
+        getattr(validation_cfg, "grasp_quality", None)
+        if validation_cfg is not None
+        else None
+    )
+    grasp_quality_enabled = bool(
+        getattr(grasp_quality_cfg, "enabled", False)
+        if grasp_quality_cfg is not None
+        else False
+    )
     for n, loader in val_loaders.items():
         totals = {}
         count = 0
+        quality_count = 0
+        quality_max_batches = int(
+            getattr(grasp_quality_cfg, "batches_per_n", 1)
+            if grasp_quality_cfg is not None
+            else 0
+        )
         max_batches = int(getattr(cfg.train, "val_batches_per_n", 10))
         for batch_idx, batch in enumerate(loader):
             if batch_idx >= max_batches:
                 break
             batch = to_device(batch, device)
+            conditioned_object_pc = get_conditioned_object_pc(batch, cfg)
             outputs, losses, stats = model_training_step(
                 model,
-                object_pc=get_conditioned_object_pc(batch, cfg),
+                object_pc=conditioned_object_pc,
                 contacts=batch["contacts"],
                 num_contacts=int(n),
             )
@@ -230,22 +249,48 @@ def validate(model, val_loaders, cfg, device, writer=None, step: int = 0):
                 totals[key] = totals.get(key, 0.0) + value
             for key, value in tensor_items(stats).items():
                 totals[key] = totals.get(key, 0.0) + value
+            if grasp_quality_enabled and batch_idx < quality_max_batches:
+                quality_metrics = evaluate_generated_contact_batch(
+                    unwrap_model(model),
+                    conditioned_object_pc,
+                    batch["object_pc"],
+                    int(n),
+                    grasp_quality_cfg,
+                    object_normals=batch.get("object_normals"),
+                    seed=int(cfg.train.seed) + int(n) * 1009 + batch_idx,
+                )
+                for key, value in quality_metrics.items():
+                    totals[key] = totals.get(key, 0.0) + value
+                quality_count += 1
             count += 1
         if count == 0:
             continue
-        n_result = {key: value / count for key, value in totals.items()}
+        n_result = {
+            key: value / (quality_count if key.startswith("grasp_") else count)
+            for key, value in totals.items()
+        }
         results[int(n)] = n_result
         for key, value in n_result.items():
             mean_accum[key] = mean_accum.get(key, 0.0) + value
             if writer is not None:
-                writer.add_scalar(f"val/loss_{key}_n{n}", value, step)
+                tag = (
+                    f"val/{key}_n{n}"
+                    if key.startswith("grasp_")
+                    else f"val/loss_{key}_n{n}"
+                )
+                writer.add_scalar(tag, value, step)
         mean_count += 1
     means = {}
     if mean_count > 0:
         for key, value in mean_accum.items():
             means[key] = value / mean_count
             if writer is not None:
-                writer.add_scalar(f"val/loss_{key}_mean", means[key], step)
+                tag = (
+                    f"val/{key}_mean"
+                    if key.startswith("grasp_")
+                    else f"val/loss_{key}_mean"
+                )
+                writer.add_scalar(tag, means[key], step)
     model.train()
     return results, means
 

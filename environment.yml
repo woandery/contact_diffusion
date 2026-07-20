@@ -8,6 +8,7 @@ dependencies:
   - pip
   - pytorch
   - numpy
+  - scipy
   - tensorboard
   - pip:
       - omegaconf>=2.3

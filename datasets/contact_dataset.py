@@ -14,6 +14,9 @@ Required npz fields:
     selected_indices: (n,) int
     object_name: scalar string
     robot_name: scalar string
+
+Optional npz field:
+    object_normals: (2048, 3) outward unit normals aligned with object_pc
 """
 
 from __future__ import annotations
@@ -50,6 +53,12 @@ OBJECT_PC_SHARD_KEYS = (
     "point_cloud",
     "pc",
     "object_point_cloud",
+)
+OBJECT_NORMAL_ASSET_KEYS = (
+    "object_normals_asset",
+    "object_normal_asset",
+    "normals_asset",
+    "normal_asset",
 )
 
 
@@ -131,6 +140,18 @@ class ContactDatasetV0(Dataset):
                 "selected_indices": torch.from_numpy(selected_indices),
                 "path": str(path),
             }
+            if "object_normals" in data:
+                object_normals = np.asarray(data["object_normals"], dtype=np.float32)
+                if object_normals.shape != object_pc.shape:
+                    self._fail(
+                        path,
+                        f"object_normals shape must be {object_pc.shape}, got {object_normals.shape}",
+                    )
+                self._check_finite(path, "object_normals", object_normals)
+                lengths = np.linalg.norm(object_normals, axis=1)
+                if not np.allclose(lengths, 1.0, atol=1e-3, rtol=0.0):
+                    self._fail(path, "object_normals must contain outward unit normals")
+                item["object_normals"] = torch.from_numpy(object_normals)
             if self.load_cmap and "cmap" in data:
                 cmap = np.asarray(data["cmap"], dtype=np.float32)
                 if cmap.shape != (2048, 1):
@@ -449,6 +470,25 @@ class ContactFormatDataset(Dataset):
             "path": f"{self.manifest_path}:{idx}",
         }
 
+        normals_rel = next(
+            (row.get(key) for key in OBJECT_NORMAL_ASSET_KEYS if row.get(key)), None
+        )
+        if normals_rel is not None:
+            normals_raw = np.asarray(self._load_array_asset(normals_rel))
+            if normals_raw.ndim != 2 or normals_raw.shape[1] < 3:
+                raise ValueError(
+                    f"Object normal asset must have shape (M, >=3), got {normals_raw.shape}"
+                )
+            if len(normals_raw) != len(object_raw):
+                raise ValueError(
+                    f"Object normal count {len(normals_raw)} does not match point count {len(object_raw)}"
+                )
+            object_normals = np.asarray(normals_raw[point_indices, :3], dtype=np.float32)
+            lengths = np.linalg.norm(object_normals, axis=1, keepdims=True)
+            if np.any(~np.isfinite(lengths)) or np.any(lengths <= 1e-12):
+                raise ValueError(f"Invalid object normals at {item['path']}")
+            item["object_normals"] = object_normals / lengths
+
         if self.load_cmap:
             cu_rel = row.get("contact_union_asset") or row.get("cmap_asset")
             if cu_rel is not None:
@@ -482,6 +522,10 @@ class ContactFormatDataset(Dataset):
             out["cmap"] = torch.from_numpy(np.asarray(item["cmap"], dtype=np.float32))
         if "qpos" in item:
             out["qpos"] = torch.from_numpy(np.asarray(item["qpos"], dtype=np.float32))
+        if "object_normals" in item:
+            out["object_normals"] = torch.from_numpy(
+                np.asarray(item["object_normals"], dtype=np.float32)
+            )
         return out
 
 
@@ -501,6 +545,10 @@ def contact_collate_fn(batch):
         out["cmap"] = torch.stack([item["cmap"] for item in batch], dim=0)
     if all("qpos" in item for item in batch):
         out["qpos"] = [item["qpos"] for item in batch]
+    if all("object_normals" in item for item in batch):
+        out["object_normals"] = torch.stack(
+            [item["object_normals"] for item in batch], dim=0
+        )
     if all("contact_source" in item for item in batch):
         out["contact_source"] = [item["contact_source"] for item in batch]
     if all("n_definition" in item for item in batch):
