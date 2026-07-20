@@ -34,6 +34,25 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
 
+OBJECT_PC_ASSET_KEYS = (
+    "object_pc_asset",
+    "object_point_cloud_asset",
+    "pc_asset",
+    "asset_object_pc",
+    "assets_object_pc",
+    "asset_pcd",
+    "vision_partial_pc_asset",
+)
+OBJECT_PC_SHARD_KEYS = (
+    "object_pc",
+    "object_points",
+    "points",
+    "point_cloud",
+    "pc",
+    "object_point_cloud",
+)
+
+
 class ContactDatasetV0(Dataset):
     def __init__(
         self,
@@ -364,11 +383,16 @@ class ContactFormatDataset(Dataset):
         contacts_raw = np.asarray(shard[self.contact_field][shard_offset])
         contacts = self._select_contacts(contacts_raw, rng)
 
-        pc_rel = row.get("object_pc_asset") or row.get("object_point_cloud_asset") or row.get("pc_asset")
+        pc_rel = next((row.get(key) for key in OBJECT_PC_ASSET_KEYS if row.get(key)), None)
         if pc_rel is None:
-            if "object_pc" not in shard:
-                raise KeyError("No object_pc asset in manifest row and no object_pc field in shard")
-            object_raw = np.asarray(shard["object_pc"][shard_offset])
+            pc_key = next((key for key in OBJECT_PC_SHARD_KEYS if key in shard), None)
+            if pc_key is None:
+                raise KeyError(
+                    "No object point cloud found. "
+                    f"Checked row asset keys={OBJECT_PC_ASSET_KEYS}, "
+                    f"shard keys={list(shard.files)}, row keys={sorted(row.keys())}"
+                )
+            object_raw = np.asarray(shard[pc_key][shard_offset])
         else:
             object_raw = self._load_array_asset(pc_rel)
         object_pc, point_indices = self._sample_rows(object_raw, self.num_points, rng)
