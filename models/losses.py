@@ -13,12 +13,18 @@ def noise_mse_loss(eps_pred: torch.Tensor, eps: torch.Tensor) -> torch.Tensor:
 
 
 def chamfer_loss_contacts(pred_contacts: torch.Tensor, target_contacts: torch.Tensor) -> torch.Tensor:
+    return chamfer_loss_contacts_per_sample(pred_contacts, target_contacts).mean()
+
+
+def chamfer_loss_contacts_per_sample(
+    pred_contacts: torch.Tensor, target_contacts: torch.Tensor
+) -> torch.Tensor:
     pred_xyz = pred_contacts[..., :3]
     target_xyz = target_contacts[..., :3]
     dist = torch.cdist(pred_xyz, target_xyz, p=2).pow(2)
     pred_to_target = dist.min(dim=2)[0].mean(dim=1)
     target_to_pred = dist.min(dim=1)[0].mean(dim=1)
-    return (pred_to_target + target_to_pred).mean()
+    return pred_to_target + target_to_pred
 
 
 def surface_loss_contacts(
@@ -103,9 +109,13 @@ def compute_contact_losses(
 
         if set_loss_type != "chamfer":
             raise ValueError("Standalone ContactDiffusion currently supports set_loss_type='chamfer'.")
-        set_loss = chamfer_loss_contacts(c0_pred_for_set, c0_for_set)
+        per_sample_chamfer = chamfer_loss_contacts_per_sample(c0_pred_for_set, c0_for_set)
+        set_loss = per_sample_chamfer.mean()
         losses["chamfer"] = (lambda_set, set_loss)
         stats["chamfer"] = set_loss.detach()
+        stats["chamfer_min"] = per_sample_chamfer.min().detach()
+        stats["chamfer_max"] = per_sample_chamfer.max().detach()
+        stats["chamfer_mean"] = set_loss.detach()
 
     if lambda_surface != 0:
         losses["surface"] = (lambda_surface, surface_loss_contacts(c0_pred, object_pc))

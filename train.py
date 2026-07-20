@@ -137,6 +137,10 @@ def loss_items(losses: Dict[str, tuple]) -> Dict[str, float]:
     return {key: float(value.detach().cpu()) for key, (_, value) in losses.items()}
 
 
+def tensor_items(items: Dict[str, torch.Tensor]) -> Dict[str, float]:
+    return {key: float(value.detach().cpu()) for key, value in items.items()}
+
+
 def unwrap_model(model):
     return model.module if hasattr(model, "module") else model
 
@@ -214,7 +218,7 @@ def validate(model, val_loaders, cfg, device, writer=None, step: int = 0):
             if batch_idx >= max_batches:
                 break
             batch = to_device(batch, device)
-            outputs, losses, _ = model_training_step(
+            outputs, losses, stats = model_training_step(
                 model,
                 object_pc=get_conditioned_object_pc(batch, cfg),
                 contacts=batch["contacts"],
@@ -223,6 +227,8 @@ def validate(model, val_loaders, cfg, device, writer=None, step: int = 0):
             total = weighted_loss(losses)
             totals["total"] = totals.get("total", 0.0) + float(total.detach().cpu())
             for key, value in loss_items(losses).items():
+                totals[key] = totals.get(key, 0.0) + value
+            for key, value in tensor_items(stats).items():
                 totals[key] = totals.get(key, 0.0) + value
             count += 1
         if count == 0:
@@ -326,7 +332,7 @@ def train(args):
         n, batch = grouped_train.next()
         batch = to_device(batch, device)
         optimizer.zero_grad(set_to_none=True)
-        outputs, losses, _ = model_training_step(
+        outputs, losses, stats = model_training_step(
             model,
             object_pc=get_conditioned_object_pc(batch, cfg),
             contacts=batch["contacts"],
@@ -343,18 +349,24 @@ def train(args):
         optimizer.step()
 
         values = loss_items(losses)
+        stat_values = tensor_items(stats)
         if writer is not None:
             writer.add_scalar("train/loss_total", float(loss.detach().cpu()), step)
             writer.add_scalar(f"train/loss_total_n{n}", float(loss.detach().cpu()), step)
             for key, value in values.items():
                 writer.add_scalar(f"train/loss_{key}", value, step)
                 writer.add_scalar(f"train/loss_{key}_n{n}", value, step)
+            for key, value in stat_values.items():
+                writer.add_scalar(f"train/{key}", value, step)
+                writer.add_scalar(f"train/{key}_n{n}", value, step)
 
         if is_main_process(rank) and (step % log_every == 0 or step == 1):
             print(
                 f"[step {step:06d}] n={n} loss={float(loss.detach().cpu()):.6f} "
                 f"noise={values.get('noise', 0.0):.6f} "
-                f"chamfer={values.get('chamfer', 0.0):.6f}",
+                f"chamfer={values.get('chamfer', 0.0):.6f} "
+                f"chamfer_min={stat_values.get('chamfer_min', 0.0):.6f} "
+                f"chamfer_max={stat_values.get('chamfer_max', 0.0):.6f}",
                 flush=True,
             )
 
