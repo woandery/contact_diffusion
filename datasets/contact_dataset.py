@@ -173,6 +173,10 @@ class ContactFormatDataset(Dataset):
         seed: int = 42,
         index_cache_dir: str = ".cache/contactdiffusion/manifest_offsets",
         shard_cache_size: int = 4,
+        object_pc_asset_keys: Optional[Sequence[str]] = None,
+        success_only: bool = False,
+        max_projection_distance: Optional[float] = None,
+        allowed_grippers: Optional[Sequence[str]] = None,
     ):
         self.root_dir = Path(root_dir)
         self.dataset_dir = Path(dataset_dir)
@@ -187,6 +191,12 @@ class ContactFormatDataset(Dataset):
         self.normalize = bool(normalize)
         self.seed = int(seed)
         self.shard_cache_size = int(shard_cache_size)
+        self.object_pc_asset_keys = tuple(object_pc_asset_keys or OBJECT_PC_ASSET_KEYS)
+        self.success_only = bool(success_only)
+        self.max_projection_distance = None if max_projection_distance is None else float(max_projection_distance)
+        self.allowed_grippers = None
+        if allowed_grippers is not None:
+            self.allowed_grippers = {str(name) for name in allowed_grippers}
         self._shard_cache: OrderedDict[Path, np.lib.npyio.NpzFile] = OrderedDict()
         self._asset_cache: OrderedDict[Path, np.ndarray] = OrderedDict()
 
@@ -226,7 +236,13 @@ class ContactFormatDataset(Dataset):
 
     def _cache_key(self) -> str:
         stat = self.manifest_path.stat()
-        raw = f"{self.manifest_path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
+        filter_state = {
+            "asset_keys": self.object_pc_asset_keys,
+            "success_only": self.success_only,
+            "max_projection_distance": self.max_projection_distance,
+            "allowed_grippers": sorted(self.allowed_grippers) if self.allowed_grippers else None,
+        }
+        raw = f"{self.manifest_path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:{json.dumps(filter_state, sort_keys=True)}"
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
     def _load_offsets(
@@ -263,13 +279,37 @@ class ContactFormatDataset(Dataset):
             offsets = np.asarray(offsets[keep], dtype=np.int64)
         return offsets
 
+    def _row_matches_filters(self, row: dict) -> bool:
+        if self.allowed_grippers is not None:
+            gripper = row.get("gripper_name") or row.get("gripper") or row.get("robot_name") or row.get("hand")
+            if str(gripper) not in self.allowed_grippers:
+                return False
+        quality = row.get("quality_flags") or {}
+        if self.success_only and not bool(row.get("success", quality.get("success", False))):
+            return False
+        if self.max_projection_distance is not None:
+            max_proj = row.get("max_projection_distance", quality.get("max_proj_m"))
+            if max_proj is None or float(max_proj) > self.max_projection_distance:
+                return False
+        return True
+
+    def _uses_row_filters(self) -> bool:
+        return self.allowed_grippers is not None or self.success_only or self.max_projection_distance is not None
+
     def _build_manifest_offsets(self) -> np.ndarray:
         offsets = array("Q")
         offset = 0
+        parse_rows = self._uses_row_filters()
         with open(self.manifest_path, "rb") as f:
             for line in f:
-                if line.strip():
-                    offsets.append(offset)
+                stripped = line.strip()
+                if stripped:
+                    if parse_rows:
+                        row = json.loads(stripped.decode("utf-8"))
+                        if self._row_matches_filters(row):
+                            offsets.append(offset)
+                    else:
+                        offsets.append(offset)
                 offset += len(line)
         return np.frombuffer(offsets, dtype=np.uint64).astype(np.int64, copy=False)
 
@@ -383,13 +423,13 @@ class ContactFormatDataset(Dataset):
         contacts_raw = np.asarray(shard[self.contact_field][shard_offset])
         contacts = self._select_contacts(contacts_raw, rng)
 
-        pc_rel = next((row.get(key) for key in OBJECT_PC_ASSET_KEYS if row.get(key)), None)
+        pc_rel = next((row.get(key) for key in self.object_pc_asset_keys if row.get(key)), None)
         if pc_rel is None:
             pc_key = next((key for key in OBJECT_PC_SHARD_KEYS if key in shard), None)
             if pc_key is None:
                 raise KeyError(
                     "No object point cloud found. "
-                    f"Checked row asset keys={OBJECT_PC_ASSET_KEYS}, "
+                    f"Checked row asset keys={self.object_pc_asset_keys}, "
                     f"shard keys={list(shard.files)}, row keys={sorted(row.keys())}"
                 )
             object_raw = np.asarray(shard[pc_key][shard_offset])
@@ -402,7 +442,9 @@ class ContactFormatDataset(Dataset):
             "contacts": contacts,
             "num_contacts": np.array(self.n, dtype=np.int64),
             "selected_indices": self._nearest_indices(object_pc, contacts),
-            "robot_name": str(row.get("hand") or row.get("robot_name") or row.get("gripper") or self.dataset_dir.name),
+            "robot_name": str(
+                row.get("gripper_name") or row.get("hand") or row.get("robot_name") or row.get("gripper") or self.dataset_dir.name
+            ),
             "object_name": str(row.get("object_name") or row.get("object_id") or row.get("object_code") or ""),
             "path": f"{self.manifest_path}:{idx}",
         }
@@ -499,6 +541,37 @@ def expand_contact_format_dataset_dirs(root_dir: str, dataset_dirs) -> list[str]
     return valid
 
 
+def filter_contact_format_dataset_dirs(
+    root_dir: str,
+    dataset_dirs: Sequence[str],
+    n: int,
+    native_n_filter: bool = False,
+    allowed_grippers: Optional[Sequence[str]] = None,
+) -> list[str]:
+    if not native_n_filter and allowed_grippers is None:
+        return list(dataset_dirs)
+    allowed = {str(name) for name in allowed_grippers} if allowed_grippers is not None else None
+    root = Path(root_dir)
+    filtered = []
+    for one_dir in dataset_dirs:
+        path = Path(one_dir)
+        full = path if path.is_absolute() else root / path
+        meta = {}
+        meta_path = full / "dataset_meta.json"
+        if meta_path.exists():
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+        gripper = str(meta.get("gripper") or meta.get("gripper_name") or full.name)
+        if allowed is not None and gripper not in allowed:
+            continue
+        if native_n_filter:
+            n_tips = meta.get("n_tips")
+            if n_tips is None or int(n_tips) != int(n):
+                continue
+        filtered.append(one_dir)
+    return filtered
+
+
 def build_contact_format_dataset(
     root_dir: str,
     dataset_dir,
@@ -515,10 +588,25 @@ def build_contact_format_dataset(
     seed: int = 42,
     index_cache_dir: str = ".cache/contactdiffusion/manifest_offsets",
     shard_cache_size: int = 4,
+    object_pc_asset_keys: Optional[Sequence[str]] = None,
+    success_only: bool = False,
+    max_projection_distance: Optional[float] = None,
+    allowed_grippers: Optional[Sequence[str]] = None,
+    native_n_filter: bool = False,
 ) -> Dataset:
     dirs = expand_contact_format_dataset_dirs(root_dir, dataset_dir)
+    dirs = filter_contact_format_dataset_dirs(
+        root_dir=root_dir,
+        dataset_dirs=dirs,
+        n=int(n),
+        native_n_filter=native_n_filter,
+        allowed_grippers=allowed_grippers,
+    )
     if not dirs:
-        raise FileNotFoundError(f"No Contact Format dataset dirs matched: {dataset_dir}")
+        raise FileNotFoundError(
+            f"No Contact Format dataset dirs matched: {dataset_dir} for n={int(n)} "
+            f"with native_n_filter={native_n_filter} allowed_grippers={allowed_grippers}"
+        )
 
     datasets = [
         ContactFormatDataset(
@@ -537,6 +625,10 @@ def build_contact_format_dataset(
             seed=seed + i,
             index_cache_dir=index_cache_dir,
             shard_cache_size=shard_cache_size,
+            object_pc_asset_keys=object_pc_asset_keys,
+            success_only=success_only,
+            max_projection_distance=max_projection_distance,
+            allowed_grippers=allowed_grippers,
         )
         for i, one_dir in enumerate(dirs)
     ]
@@ -564,6 +656,11 @@ def build_grouped_contact_loaders(
     seed: int = 42,
     index_cache_dir: str = ".cache/contactdiffusion/manifest_offsets",
     shard_cache_size: int = 4,
+    object_pc_asset_keys: Optional[Sequence[str]] = None,
+    success_only: bool = False,
+    max_projection_distance: Optional[float] = None,
+    allowed_grippers: Optional[Sequence[str]] = None,
+    native_n_filter: bool = False,
     distributed: bool = False,
     distributed_rank: int = 0,
     distributed_world_size: int = 1,
@@ -605,6 +702,11 @@ def build_grouped_contact_loaders(
                 seed=seed,
                 index_cache_dir=index_cache_dir,
                 shard_cache_size=shard_cache_size,
+                object_pc_asset_keys=object_pc_asset_keys,
+                success_only=success_only,
+                max_projection_distance=max_projection_distance,
+                allowed_grippers=allowed_grippers,
+                native_n_filter=native_n_filter,
             )
         else:
             raise ValueError(f"Unknown dataset_type={dataset_type!r}")

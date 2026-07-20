@@ -7,6 +7,11 @@ dataset:
   num_points: 2048
   dc: 3
   contact_field: "contact_points"
+  object_pc_asset_keys: ["asset_object_pc", "object_pc_asset", "object_point_cloud_asset", "pc_asset"]
+  native_n_filter: true
+  allowed_grippers: null
+  success_only: false
+  max_projection_distance: null
   load_cmap: false
   load_qpos: false
   condition_on_cmap: false
