@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import random
+import glob as globlib
 from array import array
 from collections import OrderedDict
 from pathlib import Path
@@ -29,7 +30,7 @@ from typing import Dict, Iterable, Optional, Sequence
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
 
@@ -441,6 +442,83 @@ def contact_collate_fn(batch):
     return out
 
 
+def expand_contact_format_dataset_dirs(root_dir: str, dataset_dirs) -> list[str]:
+    if dataset_dirs is None:
+        return []
+    if isinstance(dataset_dirs, (str, Path)):
+        raw_dirs = [str(dataset_dirs)]
+    else:
+        raw_dirs = [str(item) for item in dataset_dirs]
+
+    root = Path(root_dir)
+    expanded = []
+    for raw_dir in raw_dirs:
+        path = Path(raw_dir)
+        pattern = str(path if path.is_absolute() else root / path)
+        matches = sorted(globlib.glob(pattern)) if any(ch in pattern for ch in "*?[") else [pattern]
+        expanded.extend(matches)
+
+    valid = []
+    seen = set()
+    for path_str in expanded:
+        path = Path(path_str)
+        if not (path / "manifest.jsonl").exists():
+            continue
+        key = str(path.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            valid.append(str(path.relative_to(root)))
+        except ValueError:
+            valid.append(str(path))
+    return valid
+
+
+def build_contact_format_dataset(
+    root_dir: str,
+    dataset_dir,
+    split: str,
+    n: int,
+    num_points: int = 2048,
+    contact_field: str = "contact_points",
+    load_cmap: bool = False,
+    load_qpos: bool = True,
+    normalize: bool = False,
+    split_fractions: Sequence[float] = (0.98, 0.01, 0.01),
+    split_names: Sequence[str] = ("train", "val", "test"),
+    max_samples: Optional[int] = None,
+    seed: int = 42,
+    index_cache_dir: str = ".cache/contactdiffusion/manifest_offsets",
+    shard_cache_size: int = 4,
+) -> Dataset:
+    dirs = expand_contact_format_dataset_dirs(root_dir, dataset_dir)
+    if not dirs:
+        raise FileNotFoundError(f"No Contact Format dataset dirs matched: {dataset_dir}")
+
+    datasets = [
+        ContactFormatDataset(
+            root_dir=root_dir,
+            dataset_dir=one_dir,
+            split=split,
+            n=int(n),
+            num_points=num_points,
+            contact_field=contact_field,
+            load_cmap=load_cmap,
+            load_qpos=load_qpos,
+            normalize=normalize,
+            split_fractions=split_fractions,
+            split_names=split_names,
+            max_samples=max_samples,
+            seed=seed + i,
+            index_cache_dir=index_cache_dir,
+            shard_cache_size=shard_cache_size,
+        )
+        for i, one_dir in enumerate(dirs)
+    ]
+    return datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
+
+
 def build_grouped_contact_loaders(
     root_dir: str,
     split: str,
@@ -452,6 +530,7 @@ def build_grouped_contact_loaders(
     normalize: bool = False,
     dataset_type: str = "npz_v0",
     dataset_dir: Optional[str] = None,
+    dataset_dirs=None,
     num_points: int = 2048,
     contact_field: str = "contact_points",
     split_fractions: Sequence[float] = (0.98, 0.01, 0.01),
@@ -480,14 +559,15 @@ def build_grouped_contact_loaders(
                 normalize=normalize,
             )
         elif dataset_type in ("contact_format", "contact_format_v0"):
-            if dataset_dir is None:
-                raise ValueError("dataset_dir is required for dataset_type='contact_format'")
+            format_dirs = dataset_dirs if dataset_dirs is not None else dataset_dir
+            if format_dirs is None:
+                raise ValueError("dataset_dir or dataset_dirs is required for dataset_type='contact_format'")
             per_split_max = max_samples
             if split_max_samples is not None and split in split_max_samples:
                 per_split_max = split_max_samples[split]
-            dataset = ContactFormatDataset(
+            dataset = build_contact_format_dataset(
                 root_dir=root_dir,
-                dataset_dir=dataset_dir,
+                dataset_dir=format_dirs,
                 split=split,
                 n=int(n),
                 num_points=num_points,

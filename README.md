@@ -96,6 +96,17 @@ torchrun --nproc_per_node=4 train.py \
   --config configs/contact_diffusion_contact_format_multidex_barrett_n3.yaml
 ```
 
+Train all MultiGripperGrasp gripper buckets with n=2/3/5:
+
+```bash
+torchrun --nproc_per_node=4 train.py \
+  --config configs/contact_diffusion_contact_format_multigripper_n235.yaml
+```
+
+For a single MultiGripperGrasp gripper, replace `dataset.dataset_dirs` in that
+config with one concrete bucket such as
+`contact_format/v0/multigrippergrasp/by_gripper/<name>`.
+
 Object encoder choices:
 
 - `object_encoder_type: simple_pointnet` uses the standalone MLP token encoder.

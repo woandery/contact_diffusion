@@ -12,7 +12,7 @@ import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
-from datasets.contact_dataset import ContactDatasetV0, ContactFormatDataset, contact_collate_fn
+from datasets.contact_dataset import ContactDatasetV0, build_contact_format_dataset, contact_collate_fn
 from models import ContactDiffusion
 from models.losses import (
     chamfer_loss_contacts,
@@ -40,9 +40,10 @@ def sample(args):
             normalize=cfg.dataset.normalize,
         )
     elif dataset_type in ("contact_format", "contact_format_v0"):
-        dataset = ContactFormatDataset(
+        dataset = build_contact_format_dataset(
             root_dir=cfg.dataset.root_dir,
-            dataset_dir=cfg.dataset.dataset_dir,
+            dataset_dir=getattr(cfg.dataset, "dataset_dirs", None)
+            or getattr(cfg.dataset, "dataset_dir", None),
             split=args.split,
             n=args.n,
             num_points=getattr(cfg.dataset, "num_points", 2048),

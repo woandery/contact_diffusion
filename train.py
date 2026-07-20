@@ -105,6 +105,7 @@ def build_loaders(
         normalize=cfg.dataset.normalize,
         dataset_type=getattr(cfg.dataset, "type", "npz_v0"),
         dataset_dir=getattr(cfg.dataset, "dataset_dir", None),
+        dataset_dirs=getattr(cfg.dataset, "dataset_dirs", None),
         num_points=getattr(cfg.dataset, "num_points", 2048),
         contact_field=getattr(cfg.dataset, "contact_field", "contact_points"),
         split_fractions=getattr(cfg.dataset, "split_fractions", (0.98, 0.01, 0.01)),
