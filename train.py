@@ -61,6 +61,11 @@ def cleanup_distributed(distributed: bool) -> None:
         dist.destroy_process_group()
 
 
+def distributed_barrier(distributed: bool, local_rank: int) -> None:
+    if distributed:
+        dist.barrier(device_ids=[int(local_rank)])
+
+
 def is_main_process(rank: int) -> bool:
     return int(rank) == 0
 
@@ -253,8 +258,7 @@ def train(args):
     if is_main_process(rank):
         output_dir.mkdir(parents=True, exist_ok=True)
         OmegaConf.save(cfg, output_dir / "config.yaml")
-    if distributed:
-        dist.barrier()
+    distributed_barrier(distributed, local_rank)
 
     device = choose_device(str(cfg.train.device))
     if is_main_process(rank):
@@ -351,15 +355,14 @@ def train(args):
             if is_main_process(rank) and val_total < best_val:
                 best_val = val_total
                 save_checkpoint(ckpt_dir / "best_val.pt", model, optimizer, step, cfg, best_val)
-            if distributed:
-                dist.barrier()
+            distributed_barrier(distributed, local_rank)
             model.train()
 
         if is_main_process(rank) and (step % save_every == 0 or step == max_steps):
             save_checkpoint(ckpt_dir / f"step_{step:08d}.pt", model, optimizer, step, cfg, best_val)
             save_checkpoint(ckpt_dir / "latest.pt", model, optimizer, step, cfg, best_val)
-        if distributed and (step % save_every == 0 or step == max_steps):
-            dist.barrier()
+        if step % save_every == 0 or step == max_steps:
+            distributed_barrier(distributed, local_rank)
     if writer is not None:
         writer.close()
     cleanup_distributed(distributed)

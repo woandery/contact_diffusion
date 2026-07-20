@@ -128,7 +128,13 @@ class LocalPointNetPlusPlusEncoder(nn.Module):
         xyz = pc[..., :3].contiguous()
         features = pc[..., 3:].transpose(1, 2).contiguous() if pc.shape[-1] > 3 else None
         for module in self.sa_modules:
-            xyz, _, features, _ = module(xyz, features)
+            out = module(xyz, features)
+            if len(out) == 2:
+                xyz, features = out
+            elif len(out) == 4:
+                xyz, _, features, _ = out
+            else:
+                raise RuntimeError(f"Unexpected PointNet++ SA output length: {len(out)}")
         return {"tokens": features.transpose(1, 2).contiguous(), "xyz": xyz}
 
 
