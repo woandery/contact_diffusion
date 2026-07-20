@@ -1,0 +1,85 @@
+dataset:
+  type: "contact_format"
+  root_dir: "/inspire/qb-ilm2/project/zhanghanbo/public/wjx/grasp/graspdata_end"
+  dataset_dirs:
+    - "contact_format/v0/multigrippergrasp/by_gripper/*"
+  n_values: [2]
+  num_points: 2048
+  dc: 3
+  contact_field: "contact_points"
+  object_pc_asset_keys: ["asset_object_pc", "object_pc_asset", "object_point_cloud_asset", "pc_asset"]
+  native_n_filter: true
+  allowed_grippers: null
+  success_only: false
+  max_projection_distance: null
+  load_cmap: false
+  load_qpos: false
+  condition_on_cmap: false
+  normalize: false
+  split_names: ["train", "val", "test"]
+  split_fractions: [0.98, 0.01, 0.01]
+  max_samples: null
+  split_max_samples:
+    val: 2048
+    test: 2048
+  index_cache_dir: ".cache/contactdiffusion/manifest_offsets"
+  shard_cache_size: 4
+
+model:
+  dc: 3
+  object_input_dim: 3
+  d_model: 256
+  num_layers: 6
+  num_heads: 8
+  ffn_dim: null
+  dropout: 0.0
+  activation: "GELU"
+  use_n_embedding: true
+  use_object_cross_attention: true
+  object_encoder_type: "pointnet"
+  pointnet_local_npoints: [256, 128, 64]
+  pointnet_local_radii: [0.02, 0.04, 0.08]
+  pointnet_local_nsamples: [64, 128, 64]
+
+diffusion:
+  num_timesteps: 1000
+  beta_start: 0.0001
+  beta_end: 0.02
+  beta_schedule: "squaredcos_cap_v2"
+  clip_sample: true
+  prediction_type: "epsilon"
+
+loss:
+  lambda_noise: 1.0
+  lambda_chamfer: 1.0
+  lambda_surface: 0.0
+  lambda_diversity: 0.0
+  diversity_sigma: 0.01
+  set_loss_type: "chamfer"
+  chamfer_max_timestep: 200
+
+train:
+  batch_size: 128
+  num_workers: 8
+  max_steps: 50000
+  lr: 0.0001
+  weight_decay: 0.0
+  grad_clip_norm: 1.0
+  log_every: 100
+  val_every: 5000
+  val_batches_per_n: 10
+  save_every: 10000
+  device: "cuda"
+  seed: 42
+  output_dir: "outputs/contact_diffusion_contact_format_multigripper_n2"
+  n_sampling: "uniform"
+  random_permute_contacts: true
+  find_unused_parameters: true
+  resume: null
+
+sampling:
+  n_values: [2]
+  n_sampling: "uniform"
+  num_steps: 50
+  sampler: "ddpm"
+  project_to_surface: true
