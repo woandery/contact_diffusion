@@ -12,7 +12,7 @@ import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
-from datasets.contact_dataset import ContactDatasetV0, contact_collate_fn
+from datasets.contact_dataset import ContactDatasetV0, ContactFormatDataset, contact_collate_fn
 from models import ContactDiffusion
 from models.losses import (
     chamfer_loss_contacts,
@@ -29,14 +29,36 @@ def sample(args):
     if args.dataset_dir is not None:
         cfg.dataset.root_dir = args.dataset_dir
     device = choose_device(str(cfg.train.device))
-    dataset = ContactDatasetV0(
-        root_dir=cfg.dataset.root_dir,
-        split=args.split,
-        n=args.n,
-        load_cmap=bool(getattr(cfg.dataset, "condition_on_cmap", False)),
-        load_qpos=False,
-        normalize=cfg.dataset.normalize,
-    )
+    dataset_type = getattr(cfg.dataset, "type", "npz_v0")
+    if dataset_type in ("npz", "npz_v0", "v0"):
+        dataset = ContactDatasetV0(
+            root_dir=cfg.dataset.root_dir,
+            split=args.split,
+            n=args.n,
+            load_cmap=bool(getattr(cfg.dataset, "condition_on_cmap", False)),
+            load_qpos=False,
+            normalize=cfg.dataset.normalize,
+        )
+    elif dataset_type in ("contact_format", "contact_format_v0"):
+        dataset = ContactFormatDataset(
+            root_dir=cfg.dataset.root_dir,
+            dataset_dir=cfg.dataset.dataset_dir,
+            split=args.split,
+            n=args.n,
+            num_points=getattr(cfg.dataset, "num_points", 2048),
+            contact_field=getattr(cfg.dataset, "contact_field", "contact_points"),
+            load_cmap=bool(getattr(cfg.dataset, "condition_on_cmap", False)),
+            load_qpos=False,
+            normalize=cfg.dataset.normalize,
+            split_fractions=getattr(cfg.dataset, "split_fractions", (0.98, 0.01, 0.01)),
+            split_names=getattr(cfg.dataset, "split_names", ("train", "val", "test")),
+            max_samples=getattr(cfg.dataset, "max_samples", None),
+            seed=int(cfg.train.seed),
+            index_cache_dir=getattr(cfg.dataset, "index_cache_dir", ".cache/contactdiffusion/manifest_offsets"),
+            shard_cache_size=getattr(cfg.dataset, "shard_cache_size", 4),
+        )
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type!r}")
     loader = DataLoader(
         dataset,
         batch_size=cfg.train.batch_size,

@@ -1,4 +1,5 @@
 from datasets.contact_dataset import (
+    ContactFormatDataset,
     ContactDatasetV0,
     GroupedContactDataLoaders,
     build_grouped_contact_loaders,
@@ -6,6 +7,7 @@ from datasets.contact_dataset import (
 )
 
 __all__ = [
+    "ContactFormatDataset",
     "ContactDatasetV0",
     "GroupedContactDataLoaders",
     "build_grouped_contact_loaders",

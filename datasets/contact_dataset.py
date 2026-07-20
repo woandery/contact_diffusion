@@ -1,4 +1,4 @@
-"""Standalone `.npz` dataset loader for contact diffusion.
+"""Dataset loaders for contact diffusion.
 
 Expected directory layout:
 
@@ -18,9 +18,13 @@ Required npz fields:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import random
+from array import array
+from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Sequence
 
 import numpy as np
 import torch
@@ -122,6 +126,294 @@ class ContactDatasetV0(Dataset):
         return item
 
 
+class ContactFormatDataset(Dataset):
+    """Reader for the large `contact_format/v0` manifest + shard layout.
+
+    Each sample is read lazily from one `manifest.jsonl` row and the matching
+    `shards/shard_*.npz` entry. Object-side contact points are used by default
+    because this project trains contacts in object point-cloud coordinates.
+    """
+
+    def __init__(
+        self,
+        root_dir: str,
+        dataset_dir: str,
+        split: str,
+        n: int,
+        num_points: int = 2048,
+        contact_field: str = "contact_points",
+        load_cmap: bool = False,
+        load_qpos: bool = True,
+        normalize: bool = False,
+        split_fractions: Sequence[float] = (0.98, 0.01, 0.01),
+        split_names: Sequence[str] = ("train", "val", "test"),
+        max_samples: Optional[int] = None,
+        seed: int = 42,
+        index_cache_dir: str = ".cache/contactdiffusion/manifest_offsets",
+        shard_cache_size: int = 4,
+    ):
+        self.root_dir = Path(root_dir)
+        self.dataset_dir = Path(dataset_dir)
+        if not self.dataset_dir.is_absolute():
+            self.dataset_dir = self.root_dir / self.dataset_dir
+        self.split = str(split)
+        self.n = int(n)
+        self.num_points = int(num_points)
+        self.contact_field = str(contact_field)
+        self.load_cmap = bool(load_cmap)
+        self.load_qpos = bool(load_qpos)
+        self.normalize = bool(normalize)
+        self.seed = int(seed)
+        self.shard_cache_size = int(shard_cache_size)
+        self._shard_cache: OrderedDict[Path, np.lib.npyio.NpzFile] = OrderedDict()
+        self._asset_cache: OrderedDict[Path, np.ndarray] = OrderedDict()
+
+        self.manifest_path = self.dataset_dir / "manifest.jsonl"
+        self.shard_dir = self.dataset_dir / "shards"
+        if not self.manifest_path.exists():
+            raise FileNotFoundError(f"Missing Contact Format manifest: {self.manifest_path}")
+        if not self.shard_dir.exists():
+            raise FileNotFoundError(f"Missing Contact Format shard directory: {self.shard_dir}")
+
+        split_names = tuple(str(name) for name in split_names)
+        if self.split not in split_names:
+            raise ValueError(f"split must be one of {split_names}, got {self.split!r}")
+        fractions = np.asarray(split_fractions, dtype=np.float64)
+        if fractions.shape != (len(split_names),) or np.any(fractions < 0) or fractions.sum() <= 0:
+            raise ValueError("split_fractions must be non-negative and match split_names")
+        fractions = fractions / fractions.sum()
+
+        self.offsets = self._load_offsets(
+            split_names=split_names,
+            split_fractions=fractions,
+            max_samples=max_samples,
+            index_cache_dir=Path(index_cache_dir) if index_cache_dir else None,
+        )
+        if len(self.offsets) == 0:
+            raise FileNotFoundError(f"No Contact Format rows selected for split={self.split}")
+
+    def __len__(self) -> int:
+        return int(len(self.offsets))
+
+    def __del__(self):
+        for shard in getattr(self, "_shard_cache", {}).values():
+            try:
+                shard.close()
+            except Exception:
+                pass
+
+    def _cache_key(self) -> str:
+        stat = self.manifest_path.stat()
+        raw = f"{self.manifest_path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
+        return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+    def _load_offsets(
+        self,
+        split_names: Sequence[str],
+        split_fractions: np.ndarray,
+        max_samples: Optional[int],
+        index_cache_dir: Optional[Path],
+    ) -> np.ndarray:
+        key = self._cache_key()
+        all_offsets = None
+        if index_cache_dir is not None:
+            index_cache_dir.mkdir(parents=True, exist_ok=True)
+            all_path = index_cache_dir / f"{key}.all.npy"
+            if all_path.exists():
+                all_offsets = np.load(all_path, mmap_mode="r")
+            else:
+                built = self._build_manifest_offsets()
+                np.save(all_path, built)
+                all_offsets = np.load(all_path, mmap_mode="r")
+        else:
+            all_offsets = self._build_manifest_offsets()
+
+        total = int(len(all_offsets))
+        edges = np.rint(np.concatenate([[0.0], np.cumsum(split_fractions)]) * total).astype(np.int64)
+        edges[-1] = total
+        split_idx = split_names.index(self.split)
+        offsets = all_offsets[edges[split_idx] : edges[split_idx + 1]]
+        if max_samples is not None and int(max_samples) > 0 and len(offsets) > int(max_samples):
+            rng = np.random.default_rng(self.seed + split_idx)
+            keep = np.sort(rng.choice(len(offsets), size=int(max_samples), replace=False))
+            offsets = np.asarray(offsets[keep], dtype=np.int64)
+        return offsets
+
+    def _build_manifest_offsets(self) -> np.ndarray:
+        offsets = array("Q")
+        offset = 0
+        with open(self.manifest_path, "rb") as f:
+            for line in f:
+                if line.strip():
+                    offsets.append(offset)
+                offset += len(line)
+        return np.frombuffer(offsets, dtype=np.uint64).astype(np.int64, copy=False)
+
+    def _read_row(self, offset: int) -> dict:
+        with open(self.manifest_path, "rb") as f:
+            f.seek(int(offset))
+            return json.loads(f.readline().decode("utf-8"))
+
+    def _shard_path(self, shard_id) -> Path:
+        candidates = []
+        if isinstance(shard_id, str):
+            candidates.append(self.shard_dir / f"shard_{shard_id}.npz")
+            try:
+                shard_int = int(shard_id)
+            except ValueError:
+                shard_int = None
+        else:
+            shard_int = int(shard_id)
+        if shard_int is not None:
+            candidates.extend(
+                [
+                    self.shard_dir / f"shard_{shard_int:06d}.npz",
+                    self.shard_dir / f"shard_{shard_int}.npz",
+                ]
+            )
+        for path in candidates:
+            if path.exists():
+                return path
+        raise FileNotFoundError(f"Cannot find shard for shard_id={shard_id!r} in {self.shard_dir}")
+
+    def _load_shard(self, shard_id):
+        path = self._shard_path(shard_id)
+        shard = self._shard_cache.get(path)
+        if shard is not None:
+            self._shard_cache.move_to_end(path)
+            return shard
+        shard = np.load(path, allow_pickle=False)
+        self._shard_cache[path] = shard
+        while len(self._shard_cache) > self.shard_cache_size:
+            _, old = self._shard_cache.popitem(last=False)
+            old.close()
+        return shard
+
+    def _resolve_asset_path(self, rel_or_abs: str) -> Path:
+        path = Path(rel_or_abs)
+        return path if path.is_absolute() else self.root_dir / path
+
+    def _load_array_asset(self, rel_or_abs: str) -> np.ndarray:
+        path = self._resolve_asset_path(rel_or_abs)
+        cached = self._asset_cache.get(path)
+        if cached is not None:
+            self._asset_cache.move_to_end(path)
+            return cached
+        if path.suffix == ".npz":
+            with np.load(path, allow_pickle=False) as data:
+                key = "points" if "points" in data else data.files[0]
+                array = np.asarray(data[key])
+        elif path.suffix == ".npy":
+            array = np.load(path, allow_pickle=False)
+        else:
+            raise ValueError(f"Unsupported array asset type: {path}")
+        array = np.asarray(array)
+        self._asset_cache[path] = array
+        while len(self._asset_cache) > 64:
+            self._asset_cache.popitem(last=False)
+        return array
+
+    def _sample_rows(self, array: np.ndarray, count: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+        if array.ndim != 2 or array.shape[1] < 3:
+            raise ValueError(f"Expected point array shape (M, >=3), got {array.shape}")
+        total = int(array.shape[0])
+        if total <= 0:
+            raise ValueError("Cannot sample from an empty point array")
+        replace = total < count
+        indices = rng.choice(total, size=count, replace=replace)
+        return np.asarray(array[indices, :3], dtype=np.float32), indices.astype(np.int64)
+
+    def _select_contacts(self, contacts: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        contacts = np.asarray(contacts, dtype=np.float32)
+        if contacts.ndim != 2 or contacts.shape[1] < 3:
+            raise ValueError(f"{self.contact_field} must have shape (N, >=3), got {contacts.shape}")
+        contacts = contacts[:, :3]
+        valid = np.all(np.isfinite(contacts), axis=1)
+        contacts = contacts[valid]
+        if len(contacts) == 0:
+            raise ValueError(f"{self.contact_field} has no finite contact points")
+        replace = len(contacts) < self.n
+        indices = rng.choice(len(contacts), size=self.n, replace=replace)
+        return np.asarray(contacts[indices], dtype=np.float32)
+
+    def _nearest_indices(self, object_pc: np.ndarray, contacts: np.ndarray) -> np.ndarray:
+        diff = contacts[:, None, :] - object_pc[None, :, :]
+        return np.sum(diff * diff, axis=2).argmin(axis=1).astype(np.int64)
+
+    def _maybe_normalize(self, object_pc: np.ndarray, contacts: np.ndarray):
+        if not self.normalize:
+            return object_pc, contacts
+        center = object_pc.mean(axis=0, keepdims=True)
+        scale = np.linalg.norm(object_pc - center, axis=1).max()
+        if not np.isfinite(scale) or scale <= 0:
+            scale = 1.0
+        return (object_pc - center) / scale, (contacts - center) / scale
+
+    def __getitem__(self, idx: int):
+        row = self._read_row(int(self.offsets[idx]))
+        rng = np.random.default_rng(self.seed + int(idx))
+        shard = self._load_shard(row["shard_id"])
+        shard_offset = int(row["shard_offset"])
+        if self.contact_field not in shard:
+            raise KeyError(f"Shard is missing contact field {self.contact_field!r}")
+        contacts_raw = np.asarray(shard[self.contact_field][shard_offset])
+        contacts = self._select_contacts(contacts_raw, rng)
+
+        pc_rel = row.get("object_pc_asset") or row.get("object_point_cloud_asset") or row.get("pc_asset")
+        if pc_rel is None:
+            if "object_pc" not in shard:
+                raise KeyError("No object_pc asset in manifest row and no object_pc field in shard")
+            object_raw = np.asarray(shard["object_pc"][shard_offset])
+        else:
+            object_raw = self._load_array_asset(pc_rel)
+        object_pc, point_indices = self._sample_rows(object_raw, self.num_points, rng)
+
+        item = {
+            "object_pc": object_pc,
+            "contacts": contacts,
+            "num_contacts": np.array(self.n, dtype=np.int64),
+            "selected_indices": self._nearest_indices(object_pc, contacts),
+            "robot_name": str(row.get("hand") or row.get("robot_name") or row.get("gripper") or self.dataset_dir.name),
+            "object_name": str(row.get("object_name") or row.get("object_id") or row.get("object_code") or ""),
+            "path": f"{self.manifest_path}:{idx}",
+        }
+
+        if self.load_cmap:
+            cu_rel = row.get("contact_union_asset") or row.get("cmap_asset")
+            if cu_rel is not None:
+                cmap_raw = np.asarray(self._load_array_asset(cu_rel), dtype=np.float32).reshape(-1)
+                if len(cmap_raw) == len(object_raw):
+                    item["cmap"] = cmap_raw[point_indices].reshape(self.num_points, 1)
+                elif len(cmap_raw) == self.num_points:
+                    item["cmap"] = cmap_raw.reshape(self.num_points, 1)
+                else:
+                    raise ValueError(
+                        f"CMap length {len(cmap_raw)} does not match object PC length {len(object_raw)}"
+                    )
+        if self.load_qpos and "qpos" in shard:
+            item["qpos"] = np.asarray(shard["qpos"][shard_offset], dtype=np.float32)
+
+        item["object_pc"], item["contacts"] = self._maybe_normalize(item["object_pc"], item["contacts"])
+        for key in ("object_pc", "contacts"):
+            if not np.all(np.isfinite(item[key])):
+                raise ValueError(f"{key} contains NaN or Inf at {item['path']}")
+
+        out = {
+            "object_pc": torch.from_numpy(np.asarray(item["object_pc"], dtype=np.float32)),
+            "contacts": torch.from_numpy(np.asarray(item["contacts"], dtype=np.float32)),
+            "num_contacts": torch.tensor(int(item["num_contacts"]), dtype=torch.long),
+            "robot_name": item["robot_name"],
+            "object_name": item["object_name"],
+            "selected_indices": torch.from_numpy(np.asarray(item["selected_indices"], dtype=np.int64)),
+            "path": item["path"],
+        }
+        if "cmap" in item:
+            out["cmap"] = torch.from_numpy(np.asarray(item["cmap"], dtype=np.float32))
+        if "qpos" in item:
+            out["qpos"] = torch.from_numpy(np.asarray(item["qpos"], dtype=np.float32))
+        return out
+
+
 def contact_collate_fn(batch):
     if len(batch) == 0:
         return None
@@ -154,20 +446,57 @@ def build_grouped_contact_loaders(
     load_cmap: bool = True,
     load_qpos: bool = True,
     normalize: bool = False,
+    dataset_type: str = "npz_v0",
+    dataset_dir: Optional[str] = None,
+    num_points: int = 2048,
+    contact_field: str = "contact_points",
+    split_fractions: Sequence[float] = (0.98, 0.01, 0.01),
+    split_names: Sequence[str] = ("train", "val", "test"),
+    max_samples: Optional[int] = None,
+    split_max_samples: Optional[dict] = None,
+    seed: int = 42,
+    index_cache_dir: str = ".cache/contactdiffusion/manifest_offsets",
+    shard_cache_size: int = 4,
     shuffle: bool = True,
     drop_last: bool = False,
     pin_memory: bool = True,
 ) -> Dict[int, DataLoader]:
     loaders: Dict[int, DataLoader] = {}
     for n in n_values:
-        dataset = ContactDatasetV0(
-            root_dir=root_dir,
-            split=split,
-            n=int(n),
-            load_cmap=load_cmap,
-            load_qpos=load_qpos,
-            normalize=normalize,
-        )
+        if dataset_type in ("npz", "npz_v0", "v0"):
+            dataset = ContactDatasetV0(
+                root_dir=root_dir,
+                split=split,
+                n=int(n),
+                load_cmap=load_cmap,
+                load_qpos=load_qpos,
+                normalize=normalize,
+            )
+        elif dataset_type in ("contact_format", "contact_format_v0"):
+            if dataset_dir is None:
+                raise ValueError("dataset_dir is required for dataset_type='contact_format'")
+            per_split_max = max_samples
+            if split_max_samples is not None and split in split_max_samples:
+                per_split_max = split_max_samples[split]
+            dataset = ContactFormatDataset(
+                root_dir=root_dir,
+                dataset_dir=dataset_dir,
+                split=split,
+                n=int(n),
+                num_points=num_points,
+                contact_field=contact_field,
+                load_cmap=load_cmap,
+                load_qpos=load_qpos,
+                normalize=normalize,
+                split_fractions=split_fractions,
+                split_names=split_names,
+                max_samples=per_split_max,
+                seed=seed,
+                index_cache_dir=index_cache_dir,
+                shard_cache_size=shard_cache_size,
+            )
+        else:
+            raise ValueError(f"Unknown dataset_type={dataset_type!r}")
         loaders[int(n)] = DataLoader(
             dataset,
             batch_size=batch_size,

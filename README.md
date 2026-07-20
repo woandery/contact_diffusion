@@ -50,6 +50,12 @@ Each `.npz` must contain:
 - `object_name`: scalar string
 - `robot_name`: scalar string
 
+Large Contact Format datasets can be read directly from the manifest/shard layout
+described in `/home/zhb1/mck/dexgrasp/README_dataset.md`. Use
+`dataset.type: contact_format`, set `dataset.root_dir` to the `graspdata_end`
+root, and set `dataset.dataset_dir` to the relative Contact Format bucket such
+as `contact_format/v0/multidex/by_hand/barrett`.
+
 ## Run
 
 Forward test:
@@ -64,6 +70,12 @@ Train with the default Barrett n=3 config:
 ```bash
 cd ContactDiffusion
 python train.py
+```
+
+Train directly from the large MultiDex Barrett Contact Format dataset:
+
+```bash
+python train.py --config configs/contact_diffusion_contact_format_multidex_barrett_n3.yaml
 ```
 
 Override dataset path:
