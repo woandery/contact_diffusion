@@ -85,6 +85,15 @@ torchrun --nproc_per_node=4 train.py \
   --config configs/contact_diffusion_contact_format_multidex_barrett_n3.yaml
 ```
 
+Object encoder choices:
+
+- `object_encoder_type: simple_pointnet` uses the standalone MLP token encoder.
+  `object_num_tokens` controls how many sampled object points become tokens.
+- `object_encoder_type: pointnet` uses the GraspGen PointNet++ local-token
+  encoder and requires GraspGen's `pointnet2_ops` extension. Its local-token
+  hierarchy is controlled by `pointnet_local_npoints`, for example
+  `[256, 128, 64]` returns 64 final object tokens.
+
 Override dataset path:
 
 ```bash

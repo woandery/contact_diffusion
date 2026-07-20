@@ -7,10 +7,28 @@ the project can run without CUDA PointNet++ extensions.
 from __future__ import annotations
 
 import math
+import sys
+from pathlib import Path
 from typing import Optional, Union
 
 import torch
 import torch.nn as nn
+
+try:
+    from grasp_gen.models.pointnet.pointnet2_modules import PointnetSAModule
+except (ImportError, OSError) as exc:
+    sibling_graspgen = Path(__file__).resolve().parents[2] / "GraspGen"
+    if sibling_graspgen.exists() and str(sibling_graspgen) not in sys.path:
+        sys.path.insert(0, str(sibling_graspgen))
+    try:
+        from grasp_gen.models.pointnet.pointnet2_modules import PointnetSAModule
+    except (ImportError, OSError):
+        PointnetSAModule = None
+        _POINTNET_IMPORT_ERROR = exc
+    else:
+        _POINTNET_IMPORT_ERROR = None
+else:
+    _POINTNET_IMPORT_ERROR = None
 
 
 class SinusoidalPosEmb(nn.Module):
@@ -57,6 +75,70 @@ class SimplePointCloudEncoder(nn.Module):
         idx = torch.linspace(0, pc.shape[1] - 1, num_tokens, device=pc.device).round().long()
         xyz = pc[:, idx, :3]
         return {"tokens": self.point_mlp(pc[:, idx]), "xyz": xyz}
+
+
+class LocalPointNetPlusPlusEncoder(nn.Module):
+    """PointNet++ local-token encoder from the GraspGen contact diffusion model."""
+
+    def __init__(
+        self,
+        output_embedding_dim: int,
+        input_dim: int = 3,
+        npoints: Optional[list[int]] = None,
+        radii: Optional[list[float]] = None,
+        nsamples: Optional[list[int]] = None,
+    ):
+        super().__init__()
+        if PointnetSAModule is None:
+            raise ImportError(
+                "object_encoder_type='pointnet' requires GraspGen's PointNet++ extension. "
+                "Install/activate GraspGen pointnet2_ops, or use object_encoder_type='simple_pointnet'."
+            ) from _POINTNET_IMPORT_ERROR
+
+        npoints = list([256, 64, 32] if npoints is None else npoints)
+        radii = list([0.02, 0.04, 0.08] if radii is None else radii)
+        nsamples = list([64, 128, 64] if nsamples is None else nsamples)
+        if not (len(npoints) == len(radii) == len(nsamples) == 3):
+            raise ValueError("PointNet++ local encoder expects three npoints/radii/nsamples values.")
+
+        feature_dim = max(0, int(input_dim) - 3)
+        mlps = [
+            [feature_dim, 64, 128],
+            [128, 128, 256],
+            [256, 256, output_embedding_dim],
+        ]
+        self.sa_modules = nn.ModuleList(
+            [
+                PointnetSAModule(
+                    npoint=int(npoints[0]),
+                    radius=float(radii[0]),
+                    nsample=int(nsamples[0]),
+                    mlp=mlps[0],
+                    use_xyz=True,
+                ),
+                PointnetSAModule(
+                    npoint=int(npoints[1]),
+                    radius=float(radii[1]),
+                    nsample=int(nsamples[1]),
+                    mlp=mlps[1],
+                    use_xyz=True,
+                ),
+                PointnetSAModule(
+                    npoint=int(npoints[2]),
+                    radius=float(radii[2]),
+                    nsample=int(nsamples[2]),
+                    mlp=mlps[2],
+                    use_xyz=True,
+                ),
+            ]
+        )
+
+    def forward(self, pc: torch.Tensor) -> dict[str, torch.Tensor]:
+        xyz = pc[..., :3].contiguous()
+        features = pc[..., 3:].transpose(1, 2).contiguous() if pc.shape[-1] > 3 else None
+        for module in self.sa_modules:
+            xyz, _, features, _ = module(xyz, features)
+        return {"tokens": features.transpose(1, 2).contiguous(), "xyz": xyz}
 
 
 class ContactDenoisingBlock(nn.Module):
@@ -151,6 +233,9 @@ class ContactSetDenoiser(nn.Module):
         object_input_dim: int = 3,
         object_encoder_type: str = "simple_pointnet",
         object_num_tokens: int = 64,
+        pointnet_local_npoints: Optional[list[int]] = None,
+        pointnet_local_radii: Optional[list[float]] = None,
+        pointnet_local_nsamples: Optional[list[int]] = None,
         activation: str = "GELU",
     ):
         super().__init__()
@@ -186,16 +271,25 @@ class ContactSetDenoiser(nn.Module):
             self.n_fallback = None
 
         if object_encoder is None:
-            if object_encoder_type != "simple_pointnet":
-                raise ValueError(
-                    "This standalone project supports object_encoder_type='simple_pointnet' "
-                    "without external project dependencies."
+            if object_encoder_type == "simple_pointnet":
+                self.object_encoder = SimplePointCloudEncoder(
+                    output_embedding_dim=self.d_model,
+                    input_dim=int(object_input_dim),
+                    num_tokens=int(object_num_tokens),
                 )
-            self.object_encoder = SimplePointCloudEncoder(
-                output_embedding_dim=self.d_model,
-                input_dim=int(object_input_dim),
-                num_tokens=int(object_num_tokens),
-            )
+            elif object_encoder_type in ("pointnet", "pointnet++", "pointnet_local"):
+                self.object_encoder = LocalPointNetPlusPlusEncoder(
+                    output_embedding_dim=self.d_model,
+                    input_dim=int(object_input_dim),
+                    npoints=pointnet_local_npoints,
+                    radii=pointnet_local_radii,
+                    nsamples=pointnet_local_nsamples,
+                )
+            else:
+                raise ValueError(
+                    "Unsupported object_encoder_type="
+                    f"{object_encoder_type!r}; expected 'simple_pointnet' or 'pointnet'."
+                )
             object_feature_dim = self.d_model
         else:
             self.object_encoder = object_encoder
@@ -238,6 +332,9 @@ class ContactSetDenoiser(nn.Module):
             object_input_dim=getattr(cfg, "object_input_dim", 3),
             object_encoder_type=getattr(cfg, "object_encoder_type", "simple_pointnet"),
             object_num_tokens=getattr(cfg, "object_num_tokens", 64),
+            pointnet_local_npoints=getattr(cfg, "pointnet_local_npoints", None),
+            pointnet_local_radii=getattr(cfg, "pointnet_local_radii", None),
+            pointnet_local_nsamples=getattr(cfg, "pointnet_local_nsamples", None),
             activation=getattr(cfg, "activation", "GELU"),
         )
 

@@ -95,6 +95,9 @@ class ContactDiffusion(nn.Module):
             object_input_dim=getattr(cfg.model, "object_input_dim", 3),
             object_encoder_type=getattr(cfg.model, "object_encoder_type", "simple_pointnet"),
             object_num_tokens=getattr(cfg.model, "object_num_tokens", 64),
+            pointnet_local_npoints=getattr(cfg.model, "pointnet_local_npoints", None),
+            pointnet_local_radii=getattr(cfg.model, "pointnet_local_radii", None),
+            pointnet_local_nsamples=getattr(cfg.model, "pointnet_local_nsamples", None),
             activation=getattr(cfg.model, "activation", "GELU"),
         )
         denoiser = ContactSetDenoiser.from_config(denoiser_cfg)

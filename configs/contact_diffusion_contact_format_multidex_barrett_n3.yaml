@@ -30,8 +30,10 @@ model:
   activation: "GELU"
   use_n_embedding: true
   use_object_cross_attention: true
-  object_encoder_type: "simple_pointnet"
-  object_num_tokens: 256
+  object_encoder_type: "pointnet"
+  pointnet_local_npoints: [256, 128, 64]
+  pointnet_local_radii: [0.02, 0.04, 0.08]
+  pointnet_local_nsamples: [64, 128, 64]
 
 diffusion:
   num_timesteps: 1000
