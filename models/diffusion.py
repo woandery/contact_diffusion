@@ -94,6 +94,7 @@ class ContactDiffusion(nn.Module):
             use_object_cross_attention=cfg.model.use_object_cross_attention,
             object_input_dim=getattr(cfg.model, "object_input_dim", 3),
             object_encoder_type=getattr(cfg.model, "object_encoder_type", "simple_pointnet"),
+            object_num_tokens=getattr(cfg.model, "object_num_tokens", 64),
             activation=getattr(cfg.model, "activation", "GELU"),
         )
         denoiser = ContactSetDenoiser.from_config(denoiser_cfg)

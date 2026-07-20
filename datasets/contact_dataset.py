@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
 from array import array
 from collections import OrderedDict
@@ -29,6 +30,7 @@ from typing import Dict, Iterable, Optional, Sequence
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.distributed import DistributedSampler
 
 
 class ContactDatasetV0(Dataset):
@@ -223,7 +225,9 @@ class ContactFormatDataset(Dataset):
                 all_offsets = np.load(all_path, mmap_mode="r")
             else:
                 built = self._build_manifest_offsets()
-                np.save(all_path, built)
+                tmp_path = all_path.with_name(f"{all_path.stem}.{os.getpid()}.tmp.npy")
+                np.save(tmp_path, built)
+                os.replace(tmp_path, all_path)
                 all_offsets = np.load(all_path, mmap_mode="r")
         else:
             all_offsets = self._build_manifest_offsets()
@@ -457,6 +461,9 @@ def build_grouped_contact_loaders(
     seed: int = 42,
     index_cache_dir: str = ".cache/contactdiffusion/manifest_offsets",
     shard_cache_size: int = 4,
+    distributed: bool = False,
+    distributed_rank: int = 0,
+    distributed_world_size: int = 1,
     shuffle: bool = True,
     drop_last: bool = False,
     pin_memory: bool = True,
@@ -497,10 +504,22 @@ def build_grouped_contact_loaders(
             )
         else:
             raise ValueError(f"Unknown dataset_type={dataset_type!r}")
+        sampler = None
+        loader_shuffle = shuffle
+        if distributed:
+            sampler = DistributedSampler(
+                dataset,
+                num_replicas=int(distributed_world_size),
+                rank=int(distributed_rank),
+                shuffle=shuffle,
+                drop_last=drop_last,
+            )
+            loader_shuffle = False
         loaders[int(n)] = DataLoader(
             dataset,
             batch_size=batch_size,
-            shuffle=shuffle,
+            shuffle=loader_shuffle,
+            sampler=sampler,
             num_workers=num_workers,
             collate_fn=contact_collate_fn,
             pin_memory=pin_memory,
@@ -517,6 +536,7 @@ class GroupedContactDataLoaders:
         self.loaders = {int(n): loader for n, loader in loaders.items()}
         self.n_values = sorted(self.loaders.keys())
         self.iterators = {n: iter(loader) for n, loader in self.loaders.items()}
+        self.epochs = {n: 0 for n in self.loaders}
 
     def next(self, n: Optional[int] = None):
         if n is None:
@@ -525,6 +545,10 @@ class GroupedContactDataLoaders:
         try:
             batch = next(self.iterators[n])
         except StopIteration:
+            self.epochs[n] += 1
+            sampler = getattr(self.loaders[n], "sampler", None)
+            if hasattr(sampler, "set_epoch"):
+                sampler.set_epoch(self.epochs[n])
             self.iterators[n] = iter(self.loaders[n])
             batch = next(self.iterators[n])
         return n, batch

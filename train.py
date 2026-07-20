@@ -5,18 +5,23 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import random
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
 import torch
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel
 from omegaconf import OmegaConf
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from datasets.contact_dataset import GroupedContactDataLoaders, build_grouped_contact_loaders
 from models import ContactDiffusion
+from models.diffusion import predict_x0_from_eps, random_permute_contact_set
+from models.losses import compute_contact_losses
 
 
 def load_config(path: str):
@@ -38,6 +43,28 @@ def choose_device(device_cfg: str) -> torch.device:
     return torch.device(device_cfg)
 
 
+def init_distributed():
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    if world_size <= 1:
+        return False, 0, 0, 1
+    local_rank = int(os.environ["LOCAL_RANK"])
+    rank = int(os.environ["RANK"])
+    if not torch.cuda.is_available():
+        raise RuntimeError("DDP training requires CUDA in this project.")
+    torch.cuda.set_device(local_rank)
+    dist.init_process_group(backend="nccl")
+    return True, local_rank, rank, world_size
+
+
+def cleanup_distributed(distributed: bool) -> None:
+    if distributed and dist.is_initialized():
+        dist.destroy_process_group()
+
+
+def is_main_process(rank: int) -> bool:
+    return int(rank) == 0
+
+
 def to_device(batch, device):
     for key, value in list(batch.items()):
         if isinstance(value, torch.Tensor):
@@ -54,7 +81,14 @@ def get_conditioned_object_pc(batch, cfg):
     return object_pc
 
 
-def build_loaders(cfg, split: str, shuffle: bool):
+def build_loaders(
+    cfg,
+    split: str,
+    shuffle: bool,
+    distributed: bool = False,
+    rank: int = 0,
+    world_size: int = 1,
+):
     return build_grouped_contact_loaders(
         root_dir=cfg.dataset.root_dir,
         split=split,
@@ -75,9 +109,12 @@ def build_loaders(cfg, split: str, shuffle: bool):
         seed=int(cfg.train.seed),
         index_cache_dir=getattr(cfg.dataset, "index_cache_dir", ".cache/contactdiffusion/manifest_offsets"),
         shard_cache_size=getattr(cfg.dataset, "shard_cache_size", 4),
+        distributed=distributed,
+        distributed_rank=rank,
+        distributed_world_size=world_size,
         shuffle=shuffle,
         drop_last=shuffle,
-        pin_memory=str(cfg.train.device) == "cuda",
+        pin_memory=str(cfg.train.device).startswith("cuda"),
     )
 
 
@@ -89,11 +126,51 @@ def loss_items(losses: Dict[str, tuple]) -> Dict[str, float]:
     return {key: float(value.detach().cpu()) for key, (_, value) in losses.items()}
 
 
+def unwrap_model(model):
+    return model.module if hasattr(model, "module") else model
+
+
+def model_training_step(model, object_pc: torch.Tensor, contacts: torch.Tensor, num_contacts):
+    model_core = unwrap_model(model)
+    if num_contacts is None:
+        num_contacts = contacts.shape[1]
+    c0 = random_permute_contact_set(contacts) if model_core.random_permute_contacts else contacts
+    batch_size = c0.shape[0]
+    device = c0.device
+    eps = torch.randn_like(c0)
+    timesteps = torch.randint(0, model_core.num_diffusion_iters, (batch_size,), device=device).long()
+    contacts_t = model_core.noise_scheduler.add_noise(c0, eps, timesteps)
+    eps_pred = model(contacts_t, timesteps, object_pc, num_contacts)
+    c0_pred = predict_x0_from_eps(
+        contacts_t,
+        eps_pred,
+        timesteps,
+        model_core.noise_scheduler.alphas_cumprod.to(device),
+    )
+    losses, stats = compute_contact_losses(
+        eps_pred=eps_pred,
+        eps=eps,
+        c0_pred=c0_pred,
+        c0=c0,
+        object_pc=object_pc,
+        timesteps=timesteps,
+        **model_core.loss_cfg,
+    )
+    return {
+        "contacts_t": contacts_t,
+        "contacts_pred": c0_pred,
+        "eps_pred": eps_pred,
+        "eps": eps,
+        "timesteps": timesteps,
+    }, losses, stats
+
+
 def save_checkpoint(path: Path, model, optimizer, step: int, cfg, best_val: float) -> None:
+    model_to_save = unwrap_model(model)
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
-            "model": model.state_dict(),
+            "model": model_to_save.state_dict(),
             "optimizer": optimizer.state_dict(),
             "step": step,
             "config": OmegaConf.to_container(cfg, resolve=True),
@@ -105,7 +182,8 @@ def save_checkpoint(path: Path, model, optimizer, step: int, cfg, best_val: floa
 
 def load_checkpoint(path: str, model, optimizer=None):
     ckpt = torch.load(path, map_location="cpu")
-    model.load_state_dict(ckpt["model"])
+    model_to_load = unwrap_model(model)
+    model_to_load.load_state_dict(ckpt["model"])
     if optimizer is not None and "optimizer" in ckpt:
         optimizer.load_state_dict(ckpt["optimizer"])
     return int(ckpt.get("step", 0)), float(ckpt.get("best_val", math.inf))
@@ -125,7 +203,8 @@ def validate(model, val_loaders, cfg, device, writer=None, step: int = 0):
             if batch_idx >= max_batches:
                 break
             batch = to_device(batch, device)
-            outputs, losses, _ = model.training_step(
+            outputs, losses, _ = model_training_step(
+                model,
                 object_pc=get_conditioned_object_pc(batch, cfg),
                 contacts=batch["contacts"],
                 num_contacts=int(n),
@@ -155,6 +234,7 @@ def validate(model, val_loaders, cfg, device, writer=None, step: int = 0):
 
 
 def train(args):
+    distributed, local_rank, rank, world_size = init_distributed()
     cfg = load_config(args.config)
     if args.dataset_dir is not None:
         cfg.dataset.root_dir = args.dataset_dir
@@ -164,26 +244,49 @@ def train(args):
         cfg.train.max_steps = int(args.max_steps)
     if args.device is not None:
         cfg.train.device = args.device
+    if distributed:
+        cfg.train.device = f"cuda:{local_rank}"
     seed_everything(int(cfg.train.seed))
 
     output_dir = Path(cfg.train.output_dir)
     ckpt_dir = output_dir / "checkpoints"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    OmegaConf.save(cfg, output_dir / "config.yaml")
+    if is_main_process(rank):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        OmegaConf.save(cfg, output_dir / "config.yaml")
+    if distributed:
+        dist.barrier()
 
     device = choose_device(str(cfg.train.device))
-    print(
-        f"Starting training: config={args.config}, dataset={cfg.dataset.root_dir}, "
-        f"n_values={list(cfg.dataset.n_values)}, device={device}, max_steps={cfg.train.max_steps}",
-        flush=True,
+    if is_main_process(rank):
+        print(
+            f"Starting training: config={args.config}, dataset={cfg.dataset.root_dir}, "
+            f"n_values={list(cfg.dataset.n_values)}, device={device}, max_steps={cfg.train.max_steps}, "
+            f"world_size={world_size}",
+            flush=True,
+        )
+    train_loaders = build_loaders(
+        cfg,
+        split="train",
+        shuffle=True,
+        distributed=distributed,
+        rank=rank,
+        world_size=world_size,
     )
-    train_loaders = build_loaders(cfg, split="train", shuffle=True)
-    val_loaders = build_loaders(cfg, split="val", shuffle=False)
+    val_loaders = build_loaders(
+        cfg,
+        split="val",
+        shuffle=False,
+        distributed=distributed,
+        rank=rank,
+        world_size=world_size,
+    )
     grouped_train = GroupedContactDataLoaders(
         train_loaders, n_sampling=getattr(cfg.train, "n_sampling", "uniform")
     )
 
     model = ContactDiffusion.from_config(cfg).to(device)
+    if distributed:
+        model = DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(cfg.train.lr),
@@ -193,9 +296,10 @@ def train(args):
     best_val = math.inf
     if getattr(cfg.train, "resume", None):
         start_step, best_val = load_checkpoint(cfg.train.resume, model, optimizer)
-        print(f"Resumed from {cfg.train.resume} at step {start_step}, best_val={best_val:.6g}")
+        if is_main_process(rank):
+            print(f"Resumed from {cfg.train.resume} at step {start_step}, best_val={best_val:.6g}")
 
-    writer = SummaryWriter(output_dir / "tensorboard")
+    writer = SummaryWriter(output_dir / "tensorboard") if is_main_process(rank) else None
     max_steps = int(cfg.train.max_steps)
     log_every = int(cfg.train.log_every)
     val_every = int(cfg.train.val_every)
@@ -207,7 +311,8 @@ def train(args):
         n, batch = grouped_train.next()
         batch = to_device(batch, device)
         optimizer.zero_grad(set_to_none=True)
-        outputs, losses, _ = model.training_step(
+        outputs, losses, _ = model_training_step(
+            model,
             object_pc=get_conditioned_object_pc(batch, cfg),
             contacts=batch["contacts"],
             num_contacts=int(n),
@@ -218,17 +323,19 @@ def train(args):
         loss.backward()
         if grad_clip > 0:
             grad_norm = clip_grad_norm_(model.parameters(), grad_clip)
-            writer.add_scalar("train/grad_norm", float(grad_norm), step)
+            if writer is not None:
+                writer.add_scalar("train/grad_norm", float(grad_norm), step)
         optimizer.step()
 
         values = loss_items(losses)
-        writer.add_scalar("train/loss_total", float(loss.detach().cpu()), step)
-        writer.add_scalar(f"train/loss_total_n{n}", float(loss.detach().cpu()), step)
-        for key, value in values.items():
-            writer.add_scalar(f"train/loss_{key}", value, step)
-            writer.add_scalar(f"train/loss_{key}_n{n}", value, step)
+        if writer is not None:
+            writer.add_scalar("train/loss_total", float(loss.detach().cpu()), step)
+            writer.add_scalar(f"train/loss_total_n{n}", float(loss.detach().cpu()), step)
+            for key, value in values.items():
+                writer.add_scalar(f"train/loss_{key}", value, step)
+                writer.add_scalar(f"train/loss_{key}_n{n}", value, step)
 
-        if step % log_every == 0 or step == 1:
+        if is_main_process(rank) and (step % log_every == 0 or step == 1):
             print(
                 f"[step {step:06d}] n={n} loss={float(loss.detach().cpu()):.6f} "
                 f"noise={values.get('noise', 0.0):.6f} "
@@ -238,17 +345,24 @@ def train(args):
 
         if step % val_every == 0:
             val_by_n, val_mean = validate(model, val_loaders, cfg, device, writer, step)
-            print(f"[step {step:06d}] validation by n: {val_by_n}")
+            if is_main_process(rank):
+                print(f"[step {step:06d}] validation by n: {val_by_n}")
             val_total = val_mean.get("total", math.inf)
-            if val_total < best_val:
+            if is_main_process(rank) and val_total < best_val:
                 best_val = val_total
                 save_checkpoint(ckpt_dir / "best_val.pt", model, optimizer, step, cfg, best_val)
+            if distributed:
+                dist.barrier()
             model.train()
 
-        if step % save_every == 0 or step == max_steps:
+        if is_main_process(rank) and (step % save_every == 0 or step == max_steps):
             save_checkpoint(ckpt_dir / f"step_{step:08d}.pt", model, optimizer, step, cfg, best_val)
             save_checkpoint(ckpt_dir / "latest.pt", model, optimizer, step, cfg, best_val)
-    writer.close()
+        if distributed and (step % save_every == 0 or step == max_steps):
+            dist.barrier()
+    if writer is not None:
+        writer.close()
+    cleanup_distributed(distributed)
 
 
 def parse_args():

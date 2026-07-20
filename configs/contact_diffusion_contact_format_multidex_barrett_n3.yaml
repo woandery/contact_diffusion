@@ -31,6 +31,7 @@ model:
   use_n_embedding: true
   use_object_cross_attention: true
   object_encoder_type: "simple_pointnet"
+  object_num_tokens: 256
 
 diffusion:
   num_timesteps: 1000
@@ -50,16 +51,16 @@ loss:
   chamfer_max_timestep: 200
 
 train:
-  batch_size: 16
-  num_workers: 4
+  batch_size: 128
+  num_workers: 8
   max_steps: 50000
   lr: 0.0001
   weight_decay: 0.0
   grad_clip_norm: 1.0
   log_every: 100
-  val_every: 1000
+  val_every: 5000
   val_batches_per_n: 10
-  save_every: 5000
+  save_every: 10000
   device: "cuda"
   seed: 42
   output_dir: "outputs/contact_diffusion_contact_format_multidex_barrett_n3"

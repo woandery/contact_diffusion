@@ -78,6 +78,13 @@ Train directly from the large MultiDex Barrett Contact Format dataset:
 python train.py --config configs/contact_diffusion_contact_format_multidex_barrett_n3.yaml
 ```
 
+On a 4-GPU node, launch distributed training with `torchrun`:
+
+```bash
+torchrun --nproc_per_node=4 train.py \
+  --config configs/contact_diffusion_contact_format_multidex_barrett_n3.yaml
+```
+
 Override dataset path:
 
 ```bash

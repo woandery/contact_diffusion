@@ -150,6 +150,7 @@ class ContactSetDenoiser(nn.Module):
         object_feature_dim: Optional[int] = None,
         object_input_dim: int = 3,
         object_encoder_type: str = "simple_pointnet",
+        object_num_tokens: int = 64,
         activation: str = "GELU",
     ):
         super().__init__()
@@ -193,6 +194,7 @@ class ContactSetDenoiser(nn.Module):
             self.object_encoder = SimplePointCloudEncoder(
                 output_embedding_dim=self.d_model,
                 input_dim=int(object_input_dim),
+                num_tokens=int(object_num_tokens),
             )
             object_feature_dim = self.d_model
         else:
@@ -235,6 +237,7 @@ class ContactSetDenoiser(nn.Module):
             use_object_cross_attention=cfg.use_object_cross_attention,
             object_input_dim=getattr(cfg, "object_input_dim", 3),
             object_encoder_type=getattr(cfg, "object_encoder_type", "simple_pointnet"),
+            object_num_tokens=getattr(cfg, "object_num_tokens", 64),
             activation=getattr(cfg, "activation", "GELU"),
         )
 
