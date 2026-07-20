@@ -7,26 +7,16 @@ the project can run without CUDA PointNet++ extensions.
 from __future__ import annotations
 
 import math
-import sys
-from pathlib import Path
 from typing import Optional, Union
 
 import torch
 import torch.nn as nn
 
 try:
-    from grasp_gen.models.pointnet.pointnet2_modules import PointnetSAModule
+    from pointnet2_ops.pointnet2_modules import PointnetSAModule
 except (ImportError, OSError) as exc:
-    sibling_graspgen = Path(__file__).resolve().parents[2] / "GraspGen"
-    if sibling_graspgen.exists() and str(sibling_graspgen) not in sys.path:
-        sys.path.insert(0, str(sibling_graspgen))
-    try:
-        from grasp_gen.models.pointnet.pointnet2_modules import PointnetSAModule
-    except (ImportError, OSError):
-        PointnetSAModule = None
-        _POINTNET_IMPORT_ERROR = exc
-    else:
-        _POINTNET_IMPORT_ERROR = None
+    PointnetSAModule = None
+    _POINTNET_IMPORT_ERROR = exc
 else:
     _POINTNET_IMPORT_ERROR = None
 
@@ -78,7 +68,7 @@ class SimplePointCloudEncoder(nn.Module):
 
 
 class LocalPointNetPlusPlusEncoder(nn.Module):
-    """PointNet++ local-token encoder from the GraspGen contact diffusion model."""
+    """PointNet++ local-token encoder for object point clouds."""
 
     def __init__(
         self,
@@ -91,8 +81,9 @@ class LocalPointNetPlusPlusEncoder(nn.Module):
         super().__init__()
         if PointnetSAModule is None:
             raise ImportError(
-                "object_encoder_type='pointnet' requires GraspGen's PointNet++ extension. "
-                "Install/activate GraspGen pointnet2_ops, or use object_encoder_type='simple_pointnet'."
+                "object_encoder_type='pointnet' requires the PointNet++ extension. "
+                "Run scripts/install_pointnet2_ops.sh from this repository, "
+                "or use object_encoder_type='simple_pointnet'."
             ) from _POINTNET_IMPORT_ERROR
 
         npoints = list([256, 64, 32] if npoints is None else npoints)

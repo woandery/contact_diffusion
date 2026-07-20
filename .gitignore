@@ -27,4 +27,8 @@ logs/
 *.npz
 *.npy
 
+third_party/pointnet2_ops/build/
+third_party/pointnet2_ops/*.egg-info/
+third_party/pointnet2_ops/pointnet2_ops/*.so
+
 .DS_Store

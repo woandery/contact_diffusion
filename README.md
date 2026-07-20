@@ -2,7 +2,10 @@
 
 Standalone contact-point diffusion project extracted from the mixed dex grasp workspace.
 
-This project does not import `GraspGen`, `GenDexGrasp`, `SeqMultiGrasp`, `dex-urdf`, or `third_party` code.  The default object encoder is `simple_pointnet`, a lightweight local-token MLP encoder that preserves the Transformer cross-attention path without requiring PointNet++ CUDA extensions.
+This project does not import `GraspGen`, `GenDexGrasp`, `SeqMultiGrasp`, or
+`dex-urdf` at runtime. The default object encoder is `simple_pointnet`, and an
+optional bundled PointNet++ CUDA extension is available for
+`object_encoder_type: pointnet`.
 
 ## Included
 
@@ -28,6 +31,14 @@ Or with conda:
 ```bash
 conda env create -f environment.yml
 conda activate contactdiff
+```
+
+Install the optional PointNet++ CUDA extension from this repository when using
+`object_encoder_type: pointnet`:
+
+```bash
+cd ContactDiffusion
+bash scripts/install_pointnet2_ops.sh
 ```
 
 ## Dataset format
@@ -89,8 +100,8 @@ Object encoder choices:
 
 - `object_encoder_type: simple_pointnet` uses the standalone MLP token encoder.
   `object_num_tokens` controls how many sampled object points become tokens.
-- `object_encoder_type: pointnet` uses the GraspGen PointNet++ local-token
-  encoder and requires GraspGen's `pointnet2_ops` extension. Its local-token
+- `object_encoder_type: pointnet` uses the PointNet++ local-token encoder and
+  requires the bundled `pointnet2_ops` extension. Its local-token
   hierarchy is controlled by `pointnet_local_npoints`, for example
   `[256, 128, 64]` returns 64 final object tokens.
 
@@ -111,5 +122,5 @@ python sample.py \
 
 ## Notes
 
-- The original PointNet++ encoder was intentionally not migrated because it depends on GraspGen modules and local CUDA extensions.
-- To preserve independence, all imports are local package imports such as `from models import ...` and `from datasets.contact_dataset import ...`.
+- PointNet++ is optional. Use `simple_pointnet` when the CUDA extension is not installed.
+- Runtime imports stay local to this project or to the bundled `pointnet2_ops` package.
