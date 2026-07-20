@@ -290,7 +290,12 @@ def train(args):
 
     model = ContactDiffusion.from_config(cfg).to(device)
     if distributed:
-        model = DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
+        model = DistributedDataParallel(
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            find_unused_parameters=bool(getattr(cfg.train, "find_unused_parameters", True)),
+        )
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(cfg.train.lr),

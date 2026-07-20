@@ -68,6 +68,7 @@ train:
   output_dir: "outputs/contact_diffusion_contact_format_multidex_barrett_n3"
   n_sampling: "uniform"
   random_permute_contacts: true
+  find_unused_parameters: true
   resume: null
 
 sampling:
