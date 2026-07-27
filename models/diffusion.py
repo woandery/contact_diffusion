@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -127,25 +127,21 @@ class ContactDiffusion(nn.Module):
         contacts_t: torch.Tensor,
         timesteps: torch.Tensor,
         object_pc: torch.Tensor,
-        num_contacts: Union[int, torch.Tensor],
     ) -> torch.Tensor:
-        return self.denoiser(contacts_t, timesteps, object_pc, num_contacts)
+        return self.denoiser(contacts_t, timesteps, object_pc)
 
     def training_step(
         self,
         object_pc: torch.Tensor,
         contacts: torch.Tensor,
-        num_contacts: Union[int, torch.Tensor, None] = None,
     ):
-        if num_contacts is None:
-            num_contacts = contacts.shape[1]
         c0 = random_permute_contact_set(contacts) if self.random_permute_contacts else contacts
         batch_size = c0.shape[0]
         device = c0.device
         eps = torch.randn_like(c0)
         timesteps = torch.randint(0, self.num_diffusion_iters, (batch_size,), device=device).long()
         contacts_t = self.noise_scheduler.add_noise(c0, eps, timesteps)
-        eps_pred = self.denoiser(contacts_t, timesteps, object_pc, num_contacts)
+        eps_pred = self.denoiser(contacts_t, timesteps, object_pc)
         c0_pred = predict_x0_from_eps(
             contacts_t,
             eps_pred,
@@ -223,7 +219,7 @@ def sample_contacts(
     scheduler.set_timesteps(num_steps)
     for timestep in scheduler.timesteps:
         t = torch.full((batch_size,), int(timestep), device=device, dtype=torch.long)
-        eps_pred = model(contacts_t, t, object_pc, num_contacts)
+        eps_pred = model(contacts_t, t, object_pc)
         contacts_t = scheduler.step(eps_pred, timestep, contacts_t).prev_sample
     if project_to_surface:
         contacts_t = project_contacts_to_surface(contacts_t, object_pc)

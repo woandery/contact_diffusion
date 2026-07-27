@@ -7,7 +7,7 @@ the project can run without CUDA PointNet++ extensions.
 from __future__ import annotations
 
 import math
-from typing import Optional, Union
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -335,17 +335,6 @@ class ContactSetDenoiser(nn.Module):
             activation=getattr(cfg, "activation", "GELU"),
         )
 
-    def _num_contacts_tensor(
-        self, num_contacts: Union[int, torch.Tensor], batch_size: int, device
-    ) -> torch.Tensor:
-        if torch.is_tensor(num_contacts):
-            n_tensor = num_contacts.to(device=device).long()
-            if n_tensor.ndim == 0:
-                n_tensor = n_tensor[None].expand(batch_size)
-        else:
-            n_tensor = torch.full((batch_size,), int(num_contacts), device=device, dtype=torch.long)
-        return n_tensor
-
     def _n_embedding(self, n_tensor: torch.Tensor) -> torch.Tensor:
         if not self.use_n_embedding:
             return torch.zeros(n_tensor.shape[0], self.d_model, device=n_tensor.device)
@@ -395,7 +384,6 @@ class ContactSetDenoiser(nn.Module):
         contacts_t: torch.Tensor,
         timesteps: torch.Tensor,
         object_pc: Optional[torch.Tensor] = None,
-        num_contacts: Union[int, torch.Tensor, None] = None,
         object_tokens: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if contacts_t.ndim != 3:
@@ -405,9 +393,7 @@ class ContactSetDenoiser(nn.Module):
 
         batch_size, n, _ = contacts_t.shape
         device = contacts_t.device
-        if num_contacts is None:
-            num_contacts = n
-        n_tensor = self._num_contacts_tensor(num_contacts, batch_size, device)
+        n_tensor = torch.full((batch_size,), n, device=device, dtype=torch.long)
 
         if torch.is_tensor(timesteps) and timesteps.ndim == 0:
             timesteps = timesteps[None].expand(batch_size)

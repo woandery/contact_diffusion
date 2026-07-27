@@ -21,9 +21,7 @@ from models import ContactSetDenoiser  # noqa: E402
 def main():
     batch_size = 2
     num_points = 2048
-    num_contacts = 3
     object_pc = torch.randn(batch_size, num_points, 3)
-    contact_noise = torch.randn(batch_size, num_contacts, 3)
     timesteps = torch.randint(0, 1000, (batch_size,))
 
     model = ContactSetDenoiser(
@@ -32,12 +30,14 @@ def main():
         num_layers=2,
         num_heads=4,
         num_diffusion_iters=1000,
-        n_values=[num_contacts],
+        n_values=[2, 3, 5],
         object_encoder_type="simple_pointnet",
     )
-    out = model(contact_noise, timesteps, object_pc, num_contacts)
-    assert out.shape == (batch_size, num_contacts, 3), out.shape
-    print(f"OK: output shape {tuple(out.shape)}")
+    for num_contacts in (2, 3, 5):
+        contact_noise = torch.randn(batch_size, num_contacts, 3)
+        out = model(contact_noise, timesteps, object_pc)
+        assert out.shape == (batch_size, num_contacts, 3), out.shape
+        print(f"OK: n={num_contacts}, output shape {tuple(out.shape)}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,114 @@
+paths:
+  dataset_root: /inspire/qb-ilm2/project/zhanghanbo/public/wjx/grasp/graspdata_end
+  contact_format_root: /inspire/qb-ilm2/project/zhanghanbo/public/wjx/grasp/graspdata_end/contact_format/v0/multigrippergrasp/by_gripper
+  gripper_root: /inspire/qb-ilm2/project/zhanghanbo/public/wjx/grasp/grasp_dataset/MultiGripperGrasp/repo/grippers
+  tip_offset_calibration: outputs/multigripper_fk/tip_offsets.json
+  isaac_asset_cache: outputs/isaacsim_assets
+
+diffusion:
+  run_dir: outputs/contact_diffusion_multigripper_success_h100_n235
+  checkpoints:
+    - checkpoints/step_00035000.pt
+    - checkpoints/best_val.pt
+    - checkpoints/latest.pt
+  sampler: ddim
+  num_steps: 50
+
+fk_optimization:
+  particles: 64
+  steps: 300
+  learning_rate: 0.005
+  contact_weight: 100.0
+  penetration_weight: 100.0
+  max_penetration_weight: 100.0
+  joint_limit_weight: 1.0
+  translation_regularization: 0.1
+  surface_points_per_link: 64
+  object_surface_points: 1024
+
+isaac:
+  headless: true
+  friction_coefficients: [0.1, 0.3, 0.5, 0.8, 1.0]
+  physics_dt: 0.004166666666666667
+  close_seconds: 0.75
+  settle_seconds: 0.25
+  gravity_test_seconds: 3.0
+  failure_displacement_m: 0.10
+  overclose_fraction: 0.02
+  solver_position_iterations: 64
+  solver_velocity_iterations: 8
+  # Keep the per-joint URDF effort limits (Franka 20, Barrett 2.5/5/50,
+  # Shadow 4 Nm). A uniform 50 Nm override can launch a light object.
+  max_joint_effort: null
+
+grippers:
+  fetch_gripper:
+    n: 2
+    ef_axis: 1
+    urdf: fetch_gripper/fetch_gripper.urdf
+    tip_links: [l_gripper_finger_link, r_gripper_finger_link]
+    opened_dofs: [0.05, 0.05]
+    close_dir: [-1, -1]
+  franka_panda:
+    n: 2
+    ef_axis: 3
+    urdf: franka_panda/franka_panda.urdf
+    tip_links: [panda_leftfinger, panda_rightfinger]
+    opened_dofs: [0.04, 0.04]
+    close_dir: [-1, -1]
+  h5_hand:
+    n: 2
+    ef_axis: -3
+    urdf: h5_hand/h5_hand.urdf
+    tip_links: [left_tip_link, right_tip_link]
+    opened_dofs: [-1.37881, 1.37881, 1.37881, -1.37881]
+    close_dir: [1, -1, 0, 0]
+  sawyer:
+    n: 2
+    ef_axis: 3
+    urdf: sawyer/sawyer.urdf
+    tip_links: [leftfinger, rightfinger]
+    opened_dofs: [0.0, 0.0]
+    close_dir: [1, 1]
+  wsg_50:
+    n: 2
+    ef_axis: 3
+    urdf: wsg_50/wsg_50.urdf
+    tip_links: [gripper_left, gripper_right]
+    opened_dofs: [-0.055, 0.055]
+    close_dir: [1, -1]
+  Barrett:
+    n: 3
+    ef_axis: 3
+    urdf: Barrett/Barrett.urdf
+    tip_links: [a_link3_joint, b_link3_joint, c_link3_joint]
+    opened_dofs: [0.523599, 0.523599, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    close_dir: [0, 0, 1, 1, 1, 0, 0, 0]
+  jaco_robot:
+    n: 3
+    ef_axis: -1
+    urdf: jaco_robot/jaco_robot.urdf
+    tip_links: [jaco_8_finger_index, jaco_8_finger_thumb, jaco_8_finger_pinkie]
+    opened_dofs: [0.0, 0.0, 0.0]
+    close_dir: [1, 1, 1]
+  robotiq_3finger:
+    n: 3
+    ef_axis: 2
+    urdf: robotiq_3finger/robotiq_3finger.urdf
+    tip_links: [RIQ_link_3_joint_a, RIQ_link_3_joint_b, RIQ_link_3_joint_c]
+    opened_dofs: [0.0, 0.0, -0.0872665, -0.0872665, -0.0872665, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    close_dir: [0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0]
+  HumanHand:
+    n: 5
+    ef_axis: -2
+    urdf: HumanHand/HumanHand.urdf
+    tip_links: [index3_joint, mid3_joint, ring3_joint, pinky3_joint, thumb3_joint]
+    opened_dofs: [0.174533, 0.0, -0.523599, -0.174533, -0.174533, 0.0, 0.0, 0.0, 0.0, -0.872665, 0.0, 0.0, 0.0, 0.0, -0.174533, 0.0, 0.0, 0.0, 0.0, 0.0]
+    close_dir: [0, 0, 0, 0, 0, 1, 1, 1, 1, 0.75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  shadow_hand:
+    n: 5
+    ef_axis: -2
+    urdf: shadow_hand/shadow_hand.urdf
+    tip_links: [index_finger_distal, middle_finger_distal, ring_finger_distal, little_finger_distal, thumb_distal]
+    opened_dofs: [-0.174533, 0.0, 0.0, -0.174533, -0.785398, 0.0, -0.349066, 0.0, 0.0, 1.20428, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.349066, 0.349066]
+    close_dir: [0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]

@@ -3,14 +3,27 @@ dataset:
   root_dir: "/inspire/qb-ilm2/project/zhanghanbo/public/wjx/grasp/graspdata_end"
   dataset_dirs:
     - "contact_format/v0/multigrippergrasp/by_gripper/*"
-  n_values: [2]
+  # Train only native 2/3/5-contact executors. Allegro (n=4) is excluded.
+  n_values: [2, 3, 5]
   num_points: 2048
   dc: 3
   contact_field: "contact_points"
   object_pc_asset_keys: ["asset_object_pc", "object_pc_asset", "object_point_cloud_asset", "pc_asset"]
   native_n_filter: true
-  allowed_grippers: null
-  success_only: false
+  allowed_grippers:
+    - "Barrett"
+    - "HumanHand"
+    - "fetch_gripper"
+    - "franka_panda"
+    - "h5_hand"
+    - "jaco_robot"
+    - "robotiq_3finger"
+    - "sawyer"
+    - "shadow_hand"
+    - "wsg_50"
+  success_only: true
+  # Do not silently bias against grippers whose converted contacts have larger
+  # projection distances. Apply a threshold only after choosing it per gripper.
   max_projection_distance: null
   load_cmap: false
   load_qpos: false
@@ -20,9 +33,9 @@ dataset:
   split_fractions: [0.98, 0.01, 0.01]
   max_samples: null
   split_max_samples:
-    val: 2048
-    test: 2048
-  index_cache_dir: ".cache/contactdiffusion/manifest_offsets"
+    val: 4096
+    test: 4096
+  index_cache_dir: ".cache/contactdiffusion/multigripper_success_h100"
   shard_cache_size: 4
 
 model:
@@ -31,7 +44,7 @@ model:
   d_model: 256
   num_layers: 6
   num_heads: 8
-  ffn_dim: null
+  ffn_dim: 1024
   dropout: 0.0
   activation: "GELU"
   use_n_embedding: true
@@ -59,33 +72,36 @@ loss:
   chamfer_max_timestep: 200
 
 train:
-  batch_size: 128
-  num_workers: 8
+  # Per-GPU batch size. Global batch = 256 * 8 = 2048 on eight H100 GPUs.
+  batch_size: 256
+  num_workers: 12
   max_steps: 50000
-  lr: 0.0001
+  lr: 0.0002
   weight_decay: 0.0
   grad_clip_norm: 1.0
   log_every: 100
-  val_every: 500
+  val_every: 5000
   val_batches_per_n: 10
-  save_every: 10000
+  save_every: 5000
   device: "cuda"
   seed: 42
-  output_dir: "outputs/contact_diffusion_contact_format_multigripper_n2"
+  output_dir: "outputs/contact_diffusion_multigripper_success_h100_n235"
+  # Gives equal optimization-step probability to n=2, n=3 and n=5.
   n_sampling: "uniform"
   random_permute_contacts: true
+  # n_fallback is intentionally unused for configured n values under DDP.
   find_unused_parameters: true
   resume: null
 
 validation:
   grasp_quality:
     enabled: true
-    batches_per_n: 4
-    samples_per_batch: 32
+    batches_per_n: 1
+    samples_per_batch: 8
     num_steps: 20
     sampler: "ddim"
-    max_projection_distance: 0.03
-    max_projection_distance_factor: 4
+    max_projection_distance: null
+    max_projection_distance_factor: 2.0
     require_precomputed_normals: false
     normal_k_neighbors: 30
     normal_viewpoint: null
@@ -97,8 +113,8 @@ validation:
     fixed_total_force_budget: true
 
 sampling:
-  n_values: [2]
+  n_values: [2, 3, 5]
   n_sampling: "uniform"
   num_steps: 50
-  sampler: "ddpm"
+  sampler: "ddim"
   project_to_surface: true

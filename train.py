@@ -7,6 +7,7 @@ import argparse
 import math
 import os
 import random
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Dict
 
@@ -146,17 +147,15 @@ def unwrap_model(model):
     return model.module if hasattr(model, "module") else model
 
 
-def model_training_step(model, object_pc: torch.Tensor, contacts: torch.Tensor, num_contacts):
+def model_training_step(model, object_pc: torch.Tensor, contacts: torch.Tensor):
     model_core = unwrap_model(model)
-    if num_contacts is None:
-        num_contacts = contacts.shape[1]
     c0 = random_permute_contact_set(contacts) if model_core.random_permute_contacts else contacts
     batch_size = c0.shape[0]
     device = c0.device
     eps = torch.randn_like(c0)
     timesteps = torch.randint(0, model_core.num_diffusion_iters, (batch_size,), device=device).long()
     contacts_t = model_core.noise_scheduler.add_noise(c0, eps, timesteps)
-    eps_pred = model(contacts_t, timesteps, object_pc, num_contacts)
+    eps_pred = model(contacts_t, timesteps, object_pc)
     c0_pred = predict_x0_from_eps(
         contacts_t,
         eps_pred,
@@ -241,7 +240,6 @@ def validate(model, val_loaders, cfg, device, writer=None, step: int = 0):
                 model,
                 object_pc=conditioned_object_pc,
                 contacts=batch["contacts"],
-                num_contacts=int(n),
             )
             total = weighted_loss(losses)
             totals["total"] = totals.get("total", 0.0) + float(total.detach().cpu())
@@ -371,33 +369,76 @@ def train(args):
     val_every = int(cfg.train.val_every)
     save_every = int(cfg.train.save_every)
     grad_clip = float(cfg.train.grad_clip_norm)
+    gradient_accumulation_steps = int(
+        getattr(cfg.train, "gradient_accumulation_steps", 1)
+    )
+    if gradient_accumulation_steps < 1:
+        raise ValueError("train.gradient_accumulation_steps must be >= 1")
+    if is_main_process(rank):
+        effective_batch_size = (
+            int(cfg.train.batch_size) * int(world_size) * gradient_accumulation_steps
+        )
+        print(
+            f"Optimization batch: micro_batch_per_gpu={int(cfg.train.batch_size)}, "
+            f"gradient_accumulation_steps={gradient_accumulation_steps}, "
+            f"effective_global_batch={effective_batch_size}",
+            flush=True,
+        )
 
     model.train()
     for step in range(start_step + 1, max_steps + 1):
-        n, batch = grouped_train.next()
-        batch = to_device(batch, device)
         optimizer.zero_grad(set_to_none=True)
-        outputs, losses, stats = model_training_step(
-            model,
-            object_pc=get_conditioned_object_pc(batch, cfg),
-            contacts=batch["contacts"],
-            num_contacts=int(n),
-        )
-        loss = weighted_loss(losses)
-        if not torch.isfinite(loss):
-            raise FloatingPointError(f"Non-finite loss at step {step}")
-        loss.backward()
+        # Keep one contact cardinality for all micro-batches in an optimizer
+        # step. This preserves the original uniform per-step n sampling while
+        # allowing the effective batch size to stay constant across GPU counts.
+        n = int(random.choice(grouped_train.n_values))
+        loss_total = 0.0
+        value_totals = {}
+        stat_totals = {}
+        for micro_step in range(gradient_accumulation_steps):
+            _, batch = grouped_train.next(n=n)
+            batch = to_device(batch, device)
+            sync_context = (
+                model.no_sync()
+                if distributed and micro_step < gradient_accumulation_steps - 1
+                else nullcontext()
+            )
+            with sync_context:
+                _, losses, stats = model_training_step(
+                    model,
+                    object_pc=get_conditioned_object_pc(batch, cfg),
+                    contacts=batch["contacts"],
+                )
+                loss = weighted_loss(losses)
+                if not torch.isfinite(loss):
+                    raise FloatingPointError(
+                        f"Non-finite loss at step {step}, micro_step {micro_step}"
+                    )
+                (loss / gradient_accumulation_steps).backward()
+            loss_total += float(loss.detach().cpu())
+            for key, value in loss_items(losses).items():
+                value_totals[key] = value_totals.get(key, 0.0) + value
+            for key, value in tensor_items(stats).items():
+                stat_totals[key] = stat_totals.get(key, 0.0) + value
+
         if grad_clip > 0:
             grad_norm = clip_grad_norm_(model.parameters(), grad_clip)
             if writer is not None:
                 writer.add_scalar("train/grad_norm", float(grad_norm), step)
         optimizer.step()
 
-        values = loss_items(losses)
-        stat_values = tensor_items(stats)
+        loss_value = loss_total / gradient_accumulation_steps
+        values = {
+            key: value / gradient_accumulation_steps
+            for key, value in value_totals.items()
+        }
+        stat_values = {
+            key: value / gradient_accumulation_steps
+            for key, value in stat_totals.items()
+        }
         if writer is not None:
-            writer.add_scalar("train/loss_total", float(loss.detach().cpu()), step)
-            writer.add_scalar(f"train/loss_total_n{n}", float(loss.detach().cpu()), step)
+            writer.add_scalar("train/loss_total", loss_value, step)
+            writer.add_scalar(f"train/loss_total_n{n}", loss_value, step)
             for key, value in values.items():
                 writer.add_scalar(f"train/loss_{key}", value, step)
                 writer.add_scalar(f"train/loss_{key}_n{n}", value, step)
@@ -407,7 +448,7 @@ def train(args):
 
         if is_main_process(rank) and (step % log_every == 0 or step == 1):
             print(
-                f"[step {step:06d}] n={n} loss={float(loss.detach().cpu()):.6f} "
+                f"[step {step:06d}] n={n} loss={loss_value:.6f} "
                 f"noise={values.get('noise', 0.0):.6f} "
                 f"chamfer={values.get('chamfer', 0.0):.6f} "
                 f"chamfer_min={stat_values.get('chamfer_min', 0.0):.6f} "

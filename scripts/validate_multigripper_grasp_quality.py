@@ -21,12 +21,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, Iterable
 
 import numpy as np
 import torch
+from torch.utils.data import ConcatDataset, Dataset
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -84,6 +86,23 @@ def summarize(values: Iterable[float]) -> Dict[str, float]:
         "min": float(np.min(arr)),
         "max": float(np.max(arr)),
     }
+
+
+def collect_balanced_items(dataset: Dataset, num_samples: int) -> list[dict]:
+    """Collect up to ``num_samples`` while balancing concatenated gripper buckets."""
+    limit = min(int(num_samples), len(dataset))
+    if not isinstance(dataset, ConcatDataset):
+        return [dataset[i] for i in range(limit)]
+
+    items = []
+    max_child_size = max(len(child) for child in dataset.datasets)
+    for child_index in range(max_child_size):
+        for child in dataset.datasets:
+            if child_index < len(child):
+                items.append(child[child_index])
+                if len(items) == limit:
+                    return items
+    return items
 
 
 def collect_direct_metrics(object_pc: torch.Tensor, contacts: torch.Tensor, args) -> Dict[str, object]:
@@ -170,6 +189,8 @@ def write_report(path: Path, payload: Dict[str, object]) -> None:
         "- n: `{}`".format(payload["n"]),
         "- success_only: `{}`".format(payload["success_only"]),
         "- samples: `{}`".format(payload["num_samples"]),
+        "- samples_by_gripper: `{}`".format(payload["samples_by_gripper"]),
+        "- friction_coef: `{}`".format(payload["quality_config"]["friction_coef"]),
         "",
         "## Validation-Time Metric Results",
         "",
@@ -209,6 +230,7 @@ def write_report(path: Path, payload: Dict[str, object]) -> None:
     )
     path.write_text("\n".join(lines), encoding="utf-8")
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-root", default="/inspire/qb-ilm2/project/zhanghanbo/public/wjx/grasp/graspdata_end")
@@ -225,7 +247,7 @@ def parse_args():
     parser.add_argument("--max-projection-distance", type=float, default=None)
     parser.add_argument("--max-projection-distance-factor", type=float, default=20.0)
     parser.add_argument("--normal-k-neighbors", type=int, default=30)
-    parser.add_argument("--friction-coef", type=float, default=0.5)
+    parser.add_argument("--friction-coef", type=float, default=0.2)
     parser.add_argument("--num-cone-faces", type=int, default=8)
     parser.add_argument("--soft-fingers", action="store_true", default=True)
     parser.add_argument("--finger-radius", type=float, default=0.005)
@@ -259,7 +281,7 @@ def main():
         allowed_grippers=args.allowed_grippers,
         native_n_filter=True,
     )
-    items = [dataset[i] for i in range(min(args.num_samples, len(dataset)))]
+    items = collect_balanced_items(dataset, args.num_samples)
     object_pc = torch.stack([item["object_pc"] for item in items], dim=0)
     contacts = torch.stack([item["contacts"] for item in items], dim=0)
 
@@ -300,6 +322,7 @@ def main():
         "split": args.split,
         "success_only": args.success_only,
         "num_samples": len(items),
+        "samples_by_gripper": dict(sorted(Counter(item["robot_name"] for item in items).items())),
         "quality_config": vars(quality_cfg),
         "validation_metrics": validation_metrics,
         "direct_metrics": direct_metrics,
