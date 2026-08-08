@@ -1,0 +1,546 @@
+{
+  "schema": "multidex-contactdiffusion-dro-gym-sim-summary-v1",
+  "comparison_scope": "Within-actuator Isaac Gym versus Isaac Sim; no cross-actuator ranking",
+  "actuators": {
+    "Barrett": {
+      "root": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/contact_diffusion/outputs/multidex_ood10_barrett64x32_top1_steps400_dro_gendex",
+      "candidate": {
+        "path": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/contact_diffusion/outputs/multidex_ood10_barrett64x32_top1_steps400_dro_gendex/candidates/barrett.json",
+        "checkpoint": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/contact_diffusion/outputs/contact_diffusion_multidex_seen48_success_n235_4x4090/checkpoints/best_val.pt",
+        "checkpoint_step": 45000,
+        "records": 640,
+        "particles": 32,
+        "optimization_steps": 400,
+        "diffusion_steps": 50
+      },
+      "gym": {
+        "trials": 640,
+        "dro_successes": 477,
+        "strict_successes": 477,
+        "dro_success_rate": 0.7453125,
+        "strict_success_rate": 0.7453125,
+        "protocol": {
+          "simulator": "Isaac Gym Preview 4 GPU PhysX",
+          "source": "D(R,O) validation/isaac_validator.py and utils/controller.py",
+          "compatibility_adjustments": [
+            "headless graphics device disabled with create_sim(gpu, -1, ...)",
+            "state tensors acquired after environment creation and prepare_sim"
+          ],
+          "steps_per_second": 100,
+          "substeps": 2,
+          "gravity_mps2": 0.0,
+          "solver_type": "TGS",
+          "solver_position_iterations": 8,
+          "solver_velocity_iterations": 0,
+          "contact_offset_m": 0.01,
+          "rest_offset_m": 0.0,
+          "robot_friction": 3.0,
+          "object_friction": 3.0,
+          "object_density_kg_m3": 500.0,
+          "joint_stiffness": 1000.0,
+          "joint_damping": 200.0,
+          "fixed_base_link": true,
+          "outer_open_fraction": 0.25,
+          "inner_close_fraction": 0.15,
+          "closure_steps": 100,
+          "direction_seconds": 1.0,
+          "direction_order": [
+            "+x",
+            "+y",
+            "+z",
+            "-x",
+            "-y",
+            "-z"
+          ],
+          "acceleration_mps2": 0.5,
+          "success_threshold_m": 0.02,
+          "dro_success_metric": "final displacement after sequential six directions",
+          "diagnostic_strict_metric": "every direction segment displacement <= threshold"
+        }
+      },
+      "sim": {
+        "trials": 640,
+        "valid_trials": 616,
+        "invalid_trials": 24,
+        "successes": 552,
+        "valid_successes": 552,
+        "raw_success_rate": 0.8625,
+        "valid_trial_success_rate": 0.8961038961038961,
+        "protocol": {
+          "gravity_mps2": 0.0,
+          "steps_per_second": 100,
+          "substeps": 2,
+          "grasp_steps": 100,
+          "direction_seconds": 1.0,
+          "direction_order": "cedex",
+          "directions": [
+            "+x",
+            "+y",
+            "+z",
+            "-x",
+            "-y",
+            "-z"
+          ],
+          "acceleration_mps2": 0.5,
+          "success_displacement_m": 0.02,
+          "success_displacement_mode": "final",
+          "robot_friction": 3.0,
+          "object_friction": 3.0,
+          "object_density_kg_m3": 500.0,
+          "object_linear_damping": 0.0,
+          "object_angular_damping": 0.0,
+          "joint_stiffness": 1000.0,
+          "joint_damping": 50.0,
+          "virtual_root_stiffness": 1000000.0,
+          "virtual_root_damping": 100000.0,
+          "joint_armature": 0.001,
+          "solver_position_iterations": 8,
+          "solver_velocity_iterations": 0
+        }
+      },
+      "sim_raw_minus_gym_percentage_points": 11.71875,
+      "sim_valid_minus_gym_percentage_points": 15.079139610389603,
+      "diagnostics": {
+        "candidate_contact_chamfer_median_m": 0.03507013060152531,
+        "candidate_assigned_contact_error_median_m": 0.01808834634721279,
+        "candidate_mean_penetration_median_m": 0.0001140257518272847,
+        "gym_final_displacement_median_m": 0.0002063535648630932,
+        "gym_final_displacement_p90_m": 5.219455003738403,
+        "gym_maximum_segment_displacement_median_m": 0.00027495366521179676,
+        "gym_outer_to_inner_joint_l2_median_rad": 0.9338630437850952
+      },
+      "objects": {
+        "contactdb_apple": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 51,
+            "strict_successes": 51
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 64,
+            "invalid_trials": 0,
+            "successes": 61,
+            "valid_successes": 61
+          },
+          "sim_raw_minus_gym_percentage_points": 15.625,
+          "sim_valid_minus_gym_percentage_points": 15.625
+        },
+        "contactdb_camera": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 49,
+            "strict_successes": 49
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 62,
+            "invalid_trials": 2,
+            "successes": 53,
+            "valid_successes": 53
+          },
+          "sim_raw_minus_gym_percentage_points": 6.25,
+          "sim_valid_minus_gym_percentage_points": 8.921370967741938
+        },
+        "contactdb_cylinder_medium": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 53,
+            "strict_successes": 53
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 63,
+            "invalid_trials": 1,
+            "successes": 59,
+            "valid_successes": 59
+          },
+          "sim_raw_minus_gym_percentage_points": 9.375,
+          "sim_valid_minus_gym_percentage_points": 10.838293650793652
+        },
+        "contactdb_door_knob": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 40,
+            "strict_successes": 40
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 64,
+            "invalid_trials": 0,
+            "successes": 62,
+            "valid_successes": 62
+          },
+          "sim_raw_minus_gym_percentage_points": 34.375,
+          "sim_valid_minus_gym_percentage_points": 34.375
+        },
+        "contactdb_rubber_duck": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 54,
+            "strict_successes": 54
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 64,
+            "invalid_trials": 0,
+            "successes": 60,
+            "valid_successes": 60
+          },
+          "sim_raw_minus_gym_percentage_points": 9.375,
+          "sim_valid_minus_gym_percentage_points": 9.375
+        },
+        "contactdb_water_bottle": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 49,
+            "strict_successes": 49
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 64,
+            "invalid_trials": 0,
+            "successes": 57,
+            "valid_successes": 57
+          },
+          "sim_raw_minus_gym_percentage_points": 12.5,
+          "sim_valid_minus_gym_percentage_points": 12.5
+        },
+        "ycb_005_tomato_soup_can": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 32,
+            "strict_successes": 32
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 50,
+            "invalid_trials": 14,
+            "successes": 42,
+            "valid_successes": 42
+          },
+          "sim_raw_minus_gym_percentage_points": 15.625,
+          "sim_valid_minus_gym_percentage_points": 34.0
+        },
+        "ycb_010_potted_meat_can": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 41,
+            "strict_successes": 41
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 57,
+            "invalid_trials": 7,
+            "successes": 47,
+            "valid_successes": 47
+          },
+          "sim_raw_minus_gym_percentage_points": 9.375,
+          "sim_valid_minus_gym_percentage_points": 18.393640350877195
+        },
+        "ycb_016_pear": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 55,
+            "strict_successes": 55
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 64,
+            "invalid_trials": 0,
+            "successes": 58,
+            "valid_successes": 58
+          },
+          "sim_raw_minus_gym_percentage_points": 4.6875,
+          "sim_valid_minus_gym_percentage_points": 4.6875
+        },
+        "ycb_055_baseball": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 53,
+            "strict_successes": 53
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 64,
+            "invalid_trials": 0,
+            "successes": 53,
+            "valid_successes": 53
+          },
+          "sim_raw_minus_gym_percentage_points": 0.0,
+          "sim_valid_minus_gym_percentage_points": 0.0
+        }
+      }
+    },
+    "ShadowHand": {
+      "root": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/contact_diffusion/outputs/multidex_ood10_shadow64x32_top1_steps400_dro",
+      "candidate": {
+        "path": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/contact_diffusion/outputs/multidex_ood10_shadow64x32_top1_steps400_dro/candidates/shadow.json",
+        "checkpoint": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/contact_diffusion/outputs/contact_diffusion_multidex_seen48_success_n235_4x4090/checkpoints/best_val.pt",
+        "checkpoint_step": 45000,
+        "records": 640,
+        "particles": 32,
+        "optimization_steps": 400,
+        "diffusion_steps": 50
+      },
+      "gym": {
+        "trials": 640,
+        "dro_successes": 3,
+        "strict_successes": 4,
+        "dro_success_rate": 0.0046875,
+        "strict_success_rate": 0.00625,
+        "protocol": {
+          "simulator": "Isaac Gym Preview 4 GPU PhysX",
+          "source": "D(R,O) validation/isaac_validator.py and utils/controller.py",
+          "compatibility_adjustments": [
+            "headless graphics device disabled with create_sim(gpu, -1, ...)",
+            "state tensors acquired after environment creation and prepare_sim"
+          ],
+          "steps_per_second": 100,
+          "substeps": 2,
+          "gravity_mps2": 0.0,
+          "solver_type": "TGS",
+          "solver_position_iterations": 8,
+          "solver_velocity_iterations": 0,
+          "contact_offset_m": 0.01,
+          "rest_offset_m": 0.0,
+          "robot_friction": 3.0,
+          "object_friction": 3.0,
+          "object_density_kg_m3": 500.0,
+          "joint_stiffness": 1000.0,
+          "joint_damping": 200.0,
+          "fixed_base_link": true,
+          "outer_open_fraction": 0.25,
+          "inner_close_fraction": 0.15,
+          "closure_steps": 100,
+          "direction_seconds": 1.0,
+          "direction_order": [
+            "+x",
+            "+y",
+            "+z",
+            "-x",
+            "-y",
+            "-z"
+          ],
+          "acceleration_mps2": 0.5,
+          "success_threshold_m": 0.02,
+          "dro_success_metric": "final displacement after sequential six directions",
+          "diagnostic_strict_metric": "every direction segment displacement <= threshold"
+        }
+      },
+      "sim": {
+        "trials": 640,
+        "valid_trials": 509,
+        "invalid_trials": 131,
+        "successes": 33,
+        "valid_successes": 33,
+        "raw_success_rate": 0.0515625,
+        "valid_trial_success_rate": 0.06483300589390963,
+        "protocol": {
+          "gravity_mps2": 0.0,
+          "steps_per_second": 100,
+          "substeps": 2,
+          "grasp_steps": 100,
+          "direction_seconds": 1.0,
+          "direction_order": "cedex",
+          "directions": [
+            "+x",
+            "+y",
+            "+z",
+            "-x",
+            "-y",
+            "-z"
+          ],
+          "acceleration_mps2": 0.5,
+          "success_displacement_m": 0.02,
+          "success_displacement_mode": "final",
+          "robot_friction": 3.0,
+          "object_friction": 3.0,
+          "object_density_kg_m3": 500.0,
+          "object_linear_damping": 0.0,
+          "object_angular_damping": 0.0,
+          "joint_stiffness": 1000.0,
+          "joint_damping": 50.0,
+          "virtual_root_stiffness": 1000000.0,
+          "virtual_root_damping": 100000.0,
+          "joint_armature": 0.001,
+          "solver_position_iterations": 8,
+          "solver_velocity_iterations": 0
+        }
+      },
+      "sim_raw_minus_gym_percentage_points": 4.6875,
+      "sim_valid_minus_gym_percentage_points": 6.0145505893909625,
+      "diagnostics": {
+        "candidate_contact_chamfer_median_m": 0.02636316604912281,
+        "candidate_assigned_contact_error_median_m": 0.01586221531033516,
+        "candidate_mean_penetration_median_m": 0.0003867071500280872,
+        "gym_final_displacement_median_m": 2.7459198236465454,
+        "gym_final_displacement_p90_m": 15.012360286712648,
+        "gym_maximum_segment_displacement_median_m": 0.7842931747436523,
+        "gym_outer_to_inner_joint_l2_median_rad": 1.4367398023605347
+      },
+      "objects": {
+        "contactdb_apple": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 0,
+            "strict_successes": 0
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 61,
+            "invalid_trials": 3,
+            "successes": 0,
+            "valid_successes": 0
+          },
+          "sim_raw_minus_gym_percentage_points": 0.0,
+          "sim_valid_minus_gym_percentage_points": 0.0
+        },
+        "contactdb_camera": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 0,
+            "strict_successes": 0
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 48,
+            "invalid_trials": 16,
+            "successes": 9,
+            "valid_successes": 9
+          },
+          "sim_raw_minus_gym_percentage_points": 14.0625,
+          "sim_valid_minus_gym_percentage_points": 18.75
+        },
+        "contactdb_cylinder_medium": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 0,
+            "strict_successes": 0
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 44,
+            "invalid_trials": 20,
+            "successes": 0,
+            "valid_successes": 0
+          },
+          "sim_raw_minus_gym_percentage_points": 0.0,
+          "sim_valid_minus_gym_percentage_points": 0.0
+        },
+        "contactdb_door_knob": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 1,
+            "strict_successes": 1
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 42,
+            "invalid_trials": 22,
+            "successes": 3,
+            "valid_successes": 3
+          },
+          "sim_raw_minus_gym_percentage_points": 3.125,
+          "sim_valid_minus_gym_percentage_points": 5.580357142857142
+        },
+        "contactdb_rubber_duck": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 0,
+            "strict_successes": 0
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 54,
+            "invalid_trials": 10,
+            "successes": 3,
+            "valid_successes": 3
+          },
+          "sim_raw_minus_gym_percentage_points": 4.6875,
+          "sim_valid_minus_gym_percentage_points": 5.555555555555555
+        },
+        "contactdb_water_bottle": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 1,
+            "strict_successes": 1
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 53,
+            "invalid_trials": 11,
+            "successes": 0,
+            "valid_successes": 0
+          },
+          "sim_raw_minus_gym_percentage_points": -1.5625,
+          "sim_valid_minus_gym_percentage_points": -1.5625
+        },
+        "ycb_005_tomato_soup_can": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 0,
+            "strict_successes": 1
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 47,
+            "invalid_trials": 17,
+            "successes": 7,
+            "valid_successes": 7
+          },
+          "sim_raw_minus_gym_percentage_points": 10.9375,
+          "sim_valid_minus_gym_percentage_points": 14.893617021276595
+        },
+        "ycb_010_potted_meat_can": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 1,
+            "strict_successes": 1
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 42,
+            "invalid_trials": 22,
+            "successes": 11,
+            "valid_successes": 11
+          },
+          "sim_raw_minus_gym_percentage_points": 15.625,
+          "sim_valid_minus_gym_percentage_points": 24.627976190476193
+        },
+        "ycb_016_pear": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 0,
+            "strict_successes": 0
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 56,
+            "invalid_trials": 8,
+            "successes": 0,
+            "valid_successes": 0
+          },
+          "sim_raw_minus_gym_percentage_points": 0.0,
+          "sim_valid_minus_gym_percentage_points": 0.0
+        },
+        "ycb_055_baseball": {
+          "gym": {
+            "trials": 64,
+            "dro_successes": 0,
+            "strict_successes": 0
+          },
+          "sim": {
+            "trials": 64,
+            "valid_trials": 62,
+            "invalid_trials": 2,
+            "successes": 0,
+            "valid_successes": 0
+          },
+          "sim_raw_minus_gym_percentage_points": 0.0,
+          "sim_valid_minus_gym_percentage_points": 0.0
+        }
+      }
+    }
+  }
+}
