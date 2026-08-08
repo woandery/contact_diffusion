@@ -1,0 +1,191 @@
+paths:
+  dataset_root: remote_assets/ycb10
+  contact_format_root: remote_assets/ycb10
+  # Keep Barrett FK in the exact GenDex/D(R,O) kinematic convention used by
+  # validate_contactdiff_ood10_dro_isaacgym.py.  In particular this produces
+  # bh_* joints directly instead of attempting a lossy post-hoc remap from the
+  # independent dex-urdf Barrett model.
+  gripper_root: ../GenDexGrasp/data/urdf
+  tip_offset_calibration: remote_assets/tip_offsets.json
+  isaac_asset_cache: outputs/remote_4x4090/isaac_asset_cache
+  object_pc_root: remote_assets/ycb10/object_pcs
+  object_mesh_root: remote_assets/ycb10/object_meshes
+
+diffusion:
+  run_dir: outputs/contact_diffusion_multidex_seen48_success_n235_4x4090
+  checkpoints:
+    - checkpoints/best_val.pt
+  sampler: ddim
+  num_steps: 50
+
+fk_optimization:
+  particles: 32
+  steps: 400
+  learning_rate: 0.005
+  contact_weight: 100.0
+  penetration_weight: 100.0
+  max_penetration_weight: 100.0
+  self_collision_weight: 100.0
+  max_self_collision_weight: 200.0
+  self_collision_clearance: 0.002
+  self_collision_points_per_link: 12
+  joint_limit_weight: 1.0
+  translation_regularization: 0.1
+  surface_points_per_link: 64
+  object_surface_points: 1024
+  palm_sdf_weight: 200.0
+  palm_target_distance_m: 0.001
+  palm_normal_opposition_weight: 5.0
+  palm_normal_max_cosine: -0.25
+  center_clamp_weight: 1000.0
+  center_clamp_margin_m: 0.002
+  dfc_weight: 2.0
+  selection_max_palm_distance_m: 0.012
+  selection_max_dfc_energy: 0.4
+  graspqp_friction_coefficient: 0.8
+  graspqp_cone_edges: 8
+  graspqp_iterations: 80
+
+isaac:
+  headless: true
+  friction_coefficients: [3.0]
+  physics_dt: 0.01
+  close_seconds: 1.0
+  settle_seconds: 0.01
+  gravity_test_seconds: 3.0
+  downward_acceleration_mps2: 0.5
+  failure_displacement_m: 0.02
+  fk_close_tracking_error_threshold_rad: 0.20
+  overclose_fraction: 0.08
+  solver_position_iterations: 8
+  solver_velocity_iterations: 0
+  max_joint_effort: null
+
+grippers:
+  Barrett:
+    n: 3
+    ef_axis: 3
+    palm_link: null
+    palm_surface_link: bh_base_link
+    urdf: barrett_adagrasp/model.urdf
+    model_source: GenDexGrasp/data/urdf/barrett_adagrasp
+    merge_fixed_joints: true
+    tip_links: [bh_finger_13_link, bh_finger_23_link, bh_finger_33_link]
+    tip_offsets:
+      bh_finger_13_link: [0.0, 0.0, 0.0]
+      bh_finger_23_link: [0.0, 0.0, 0.0]
+      bh_finger_33_link: [0.0, 0.0, 0.0]
+    base_alignment_matrix:
+      - [1.0, 0.0, 0.0, 0.0]
+      - [0.0, 1.0, 0.0, 0.0]
+      - [0.0, 0.0, 1.0, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+    opened_dofs:
+      bh_j32_joint: 0.0
+      bh_j33_joint: 0.0
+      bh_j11_joint: 0.0
+      bh_j12_joint: 0.0
+      bh_j13_joint: 0.0
+      bh_j21_joint: 0.0
+      bh_j22_joint: 0.0
+      bh_j23_joint: 0.0
+    close_dir:
+      bh_j32_joint: 1.0
+      bh_j33_joint: 1.0
+      bh_j11_joint: 0.0
+      bh_j12_joint: 1.0
+      bh_j13_joint: 1.0
+      bh_j21_joint: 0.0
+      bh_j22_joint: 1.0
+      bh_j23_joint: 1.0
+    replay_open_joints: [bh_j32_joint, bh_j33_joint, bh_j12_joint, bh_j13_joint, bh_j22_joint, bh_j23_joint]
+  shadow_hand:
+    n: 5
+    ef_axis: -2
+    palm_link: palm
+    palm_surface_link: palm
+    urdf: shadow_hand/shadow_hand_right_glb.urdf
+    model_source: remote_assets/dex-urdf/robots/hands/shadow_hand
+    merge_fixed_joints: true
+    render_collision_geometry: true
+    tip_links: [ffdistal, mfdistal, rfdistal, lfdistal, thdistal]
+    tip_offsets:
+      ffdistal: [0.0, 0.0, 0.026]
+      mfdistal: [0.0, 0.0, 0.026]
+      rfdistal: [0.0, 0.0, 0.026]
+      lfdistal: [0.0, 0.0, 0.026]
+      thdistal: [0.0, 0.0, 0.0275]
+    base_alignment_matrix:
+      - [1.0, 0.0, 0.0, 0.0]
+      - [0.0, 1.0, 0.0, 0.0]
+      - [0.0, 0.0, 1.0, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+    locked_joints:
+      WRJ2: 0.0
+      WRJ1: 0.0
+    opened_dofs:
+      WRJ2: 0.0
+      WRJ1: 0.0
+      FFJ4: 0.0
+      FFJ3: 0.0
+      FFJ2: 0.0
+      FFJ1: 0.0
+      MFJ4: 0.0
+      MFJ3: 0.0
+      MFJ2: 0.0
+      MFJ1: 0.0
+      RFJ4: 0.0
+      RFJ3: 0.0
+      RFJ2: 0.0
+      RFJ1: 0.0
+      LFJ5: 0.0
+      LFJ4: 0.0
+      LFJ3: 0.0
+      LFJ2: 0.0
+      LFJ1: 0.0
+      THJ5: 0.0
+      THJ4: 0.0
+      THJ3: 0.0
+      THJ2: 0.0
+      THJ1: 0.0
+    close_dir:
+      WRJ2: 0.0
+      WRJ1: 0.0
+      FFJ4: 0.0
+      FFJ3: 1.0
+      FFJ2: 1.0
+      FFJ1: 1.0
+      MFJ4: 0.0
+      MFJ3: 1.0
+      MFJ2: 1.0
+      MFJ1: 1.0
+      RFJ4: 0.0
+      RFJ3: 1.0
+      RFJ2: 1.0
+      RFJ1: 1.0
+      LFJ5: 1.0
+      LFJ4: 0.0
+      LFJ3: 1.0
+      LFJ2: 1.0
+      LFJ1: 1.0
+      THJ5: 0.0
+      THJ4: 1.0
+      THJ3: 0.0
+      THJ2: 1.0
+      THJ1: 1.0
+    replay_open_joints:
+      - FFJ3
+      - FFJ2
+      - FFJ1
+      - MFJ3
+      - MFJ2
+      - MFJ1
+      - RFJ3
+      - RFJ2
+      - RFJ1
+      - LFJ3
+      - LFJ2
+      - LFJ1
+      - THJ4
+      - THJ2
+      - THJ1
