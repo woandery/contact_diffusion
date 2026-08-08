@@ -8,6 +8,15 @@ isaac_root="$workspace_root/IsaacGym"
 python_path="$isaac_root/.conda-env/bin/python"
 run_root="${RUN_ROOT:-$workspace_root/contact_diffusion/outputs/contactdiff_ood10_dro_isaacgym}"
 candidates="${CANDIDATES:-$run_root/inputs/barrett_matched64x32_fk800.json}"
+robot_name="${ROBOT_NAME:-barrett}"
+
+case "$robot_name" in
+  barrett|shadowhand) ;;
+  *)
+    printf 'Unsupported ROBOT_NAME: %s\n' "$robot_name" >&2
+    exit 2
+    ;;
+esac
 
 if [[ ! -f "$candidates" ]]; then
   printf 'Candidate file does not exist: %s\n' "$candidates" >&2
@@ -28,6 +37,7 @@ run_object() {
     LD_LIBRARY_PATH="$isaac_root/.conda-env/lib:${LD_LIBRARY_PATH:-}" \
     "$python_path" "$dro_root/scripts/validate_contactdiff_ood10_dro_isaacgym.py" \
     --candidates "$candidates" \
+    --robot-name "$robot_name" \
     --object-id "$object_id" \
     --gpu 0 \
     --output "$run_root/results/${object_id}.json" \
