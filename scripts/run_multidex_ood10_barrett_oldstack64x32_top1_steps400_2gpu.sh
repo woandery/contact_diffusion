@@ -64,7 +64,17 @@ generate_half 0 gpu0 "${objects[@]:0:5}" \
   >"${run_root}/logs/generation_gpu0.log" 2>&1 & generation0=$!
 generate_half 1 gpu1 "${objects[@]:5:5}" \
   >"${run_root}/logs/generation_gpu1.log" 2>&1 & generation1=$!
-wait_pair "${generation0}" "${generation1}"
+if ! wait_pair "${generation0}" "${generation1}"; then
+  # CUDA/driver faults have occasionally affected the second physical GPU on
+  # this platform. Both outputs are resumable; finish each half sequentially
+  # on the known-good first GPU before allowing merge/validation to continue.
+  printf 'retrying_generation_sequentially_on_gpu0\n' \
+    >"${run_root}/status/pipeline.status"
+  generate_half 0 gpu0 "${objects[@]:0:5}" \
+    >>"${run_root}/logs/generation_gpu0.log" 2>&1
+  generate_half 0 gpu1 "${objects[@]:5:5}" \
+    >>"${run_root}/logs/generation_gpu1.log" 2>&1
+fi
 
 merge_args=()
 for object_id in "${objects[@]}"; do merge_args+=(--object-id "${object_id}"); done
@@ -164,4 +174,3 @@ printf 'summarizing\n' >"${run_root}/status/pipeline.status"
   >"${run_root}/logs/summary.log" 2>&1
 printf 'complete\n' >"${run_root}/status/pipeline.status"
 echo "Complete: ${project_root}/${run_root}"
-
