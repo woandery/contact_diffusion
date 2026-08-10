@@ -11,6 +11,18 @@ from pathlib import Path
 
 BASELINE_SUCCESSES = 477
 BASELINE_TRIALS = 640
+BASELINE_BY_OBJECT = {
+    "contactdb_apple": 51,
+    "contactdb_camera": 49,
+    "contactdb_cylinder_medium": 53,
+    "contactdb_door_knob": 40,
+    "contactdb_rubber_duck": 54,
+    "contactdb_water_bottle": 49,
+    "ycb_005_tomato_soup_can": 32,
+    "ycb_010_potted_meat_can": 41,
+    "ycb_016_pear": 55,
+    "ycb_055_baseball": 53,
+}
 
 
 def main() -> None:
@@ -40,6 +52,15 @@ def main() -> None:
             "successes": int(item["successes"]),
             "trials": int(item["trials"]),
             "success_rate": float(item["success_rate"]),
+            "previous_successes": BASELINE_BY_OBJECT[object_summary["object_name"]],
+            "success_change": (
+                int(item["successes"])
+                - BASELINE_BY_OBJECT[object_summary["object_name"]]
+            ),
+            "percentage_point_change": 100.0 * (
+                float(item["success_rate"])
+                - BASELINE_BY_OBJECT[object_summary["object_name"]] / 64.0
+            ),
         }
         for item, object_summary in zip(payloads, object_summaries)
     }
@@ -79,13 +100,17 @@ def main() -> None:
         f"- 原 D(R,O) Gym：{BASELINE_SUCCESSES}/{BASELINE_TRIALS} = {100.0 * baseline_rate:.2f}%",
         f"- 变化：{successes - BASELINE_SUCCESSES:+d} 次成功，{100.0 * (rate - baseline_rate):+.2f} 个百分点，相对 {100.0 * (rate / baseline_rate - 1.0):+.2f}%",
         "",
-        "| 物体 | 全旧参数 Gym |",
-        "|---|---:|",
+        "| 物体 | 原 D(R,O) Gym | 全旧参数 Gym | 变化 |",
+        "|---|---:|---:|---:|",
     ]
     for name, item in per_object.items():
         rows.append(
-            f"| {name} | {item['successes']}/{item['trials']} "
-            f"({100.0 * item['success_rate']:.2f}%) |"
+            f"| {name} | {item['previous_successes']}/64 "
+            f"({100.0 * item['previous_successes'] / 64.0:.2f}%) | "
+            f"{item['successes']}/{item['trials']} "
+            f"({100.0 * item['success_rate']:.2f}%) | "
+            f"{item['success_change']:+d} / "
+            f"{item['percentage_point_change']:+.2f} pp |"
         )
     args.output_md.write_text("\n".join(rows) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
