@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate D(R,O) ShadowHand grasps with the complete old Gym protocol."""
+"""Validate D(R,O) native-hand grasps with the complete old Gym protocol."""
 
 from __future__ import annotations
 
@@ -184,6 +184,18 @@ def ensure_movable_native_urdf(
         return output
     tree = ET.parse(source)
     robot = tree.getroot()
+    original_links = {link.attrib["name"] for link in robot.findall("link")}
+    original_children = {
+        child.attrib["link"]
+        for joint in robot.findall("joint")
+        if (child := joint.find("child")) is not None
+    }
+    original_roots = sorted(original_links - original_children)
+    if len(original_roots) != 1:
+        raise RuntimeError(
+            f"Expected one root link in {source}, got {original_roots}"
+        )
+    original_root = original_roots[0]
     links = (
         "contactdiff_virtual_anchor",
         "contactdiff_virtual_link_x",
@@ -272,7 +284,7 @@ def ensure_movable_native_urdf(
         "joint", {"name": "contactdiff_virtual_robot", "type": "fixed"}
     )
     ET.SubElement(fixed, "parent", {"link": links[-1]})
-    ET.SubElement(fixed, "child", {"link": "world"})
+    ET.SubElement(fixed, "child", {"link": original_root})
     ET.SubElement(fixed, "origin", {"xyz": "0 0 0", "rpy": "0 0 0"})
     robot.insert(len(links) + len(chain), fixed)
     temporary = output.with_suffix(".urdf.tmp")
@@ -358,7 +370,7 @@ def validate_object(
             inner = np.asarray(sample["inner_q_euler"], dtype=np.float32)
             hand_pose = gymapi.Transform()
             hand_actor = gym.create_actor(
-                env, hand_asset, hand_pose, "native_shadowhand", env_index, 0, 0
+                env, hand_asset, hand_pose, "native_hand", env_index, 0, 0
             )
             gym.set_actor_dof_properties(env, hand_actor, dof_props)
             hand_shapes = gym.get_actor_rigid_shape_properties(env, hand_actor)
@@ -527,9 +539,14 @@ def summarize(report: dict) -> None:
 def main() -> None:
     args = parse_args()
     prepared = json.loads(args.prepared.resolve().read_text(encoding="utf-8"))
-    if prepared["hand"] not in {"contactdiff_shadowhand", "shadowhand"}:
+    if prepared["hand"] not in {
+        "contactdiff_shadowhand",
+        "shadowhand",
+        "barrett",
+        "gendex_barrett",
+    }:
         raise ValueError(
-            "Prepared manifest must use contactdiff_shadowhand or shadowhand"
+            "Prepared manifest must use a supported ShadowHand or Barrett hand"
         )
     groups = list(prepared["objects"])
     prepared_joint_names = list(prepared["joint_names"])
@@ -574,7 +591,8 @@ def main() -> None:
         )
     }
     report = {
-        "schema": "contactdiff-dro-shadowhand-oldparams-isaacgym-v1",
+        "schema": "contactdiff-dro-native-hand-oldparams-isaacgym-v1",
+        "hand": prepared["hand"],
         "simulator": "Isaac Gym Preview 4 GPU PhysX",
         "prepared": str(args.prepared.resolve()),
         "native_hand_urdf": str(
