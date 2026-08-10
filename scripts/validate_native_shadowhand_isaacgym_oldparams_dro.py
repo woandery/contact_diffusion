@@ -17,12 +17,20 @@ from isaacgym import gymapi, gymtorch
 import torch
 
 
-DIRECTIONS = (
+DIRECTIONS_GENDEX = (
     ("+x", (1.0, 0.0, 0.0)),
     ("-x", (-1.0, 0.0, 0.0)),
     ("+y", (0.0, 1.0, 0.0)),
     ("-y", (0.0, -1.0, 0.0)),
     ("+z", (0.0, 0.0, 1.0)),
+    ("-z", (0.0, 0.0, -1.0)),
+)
+DIRECTIONS_CEDEX = (
+    ("+x", (1.0, 0.0, 0.0)),
+    ("+y", (0.0, 1.0, 0.0)),
+    ("+z", (0.0, 0.0, 1.0)),
+    ("-x", (-1.0, 0.0, 0.0)),
+    ("-y", (0.0, -1.0, 0.0)),
     ("-z", (0.0, 0.0, -1.0)),
 )
 OBJECT_MAP = {
@@ -73,6 +81,34 @@ def parse_args() -> argparse.Namespace:
         default=400.0,
         help="Position-drive damping for the six generated root joints.",
     )
+    parser.add_argument("--steps-per-second", type=int, default=60)
+    parser.add_argument("--substeps", type=int, default=2)
+    parser.add_argument("--closure-steps", type=int, default=200)
+    parser.add_argument("--direction-seconds", type=float, default=5.0 / 6.0)
+    parser.add_argument("--direction-order", choices=("gendex", "cedex"), default="gendex")
+    parser.add_argument("--success-mode", choices=("final", "per_direction"), default="per_direction")
+    parser.add_argument("--threshold", type=float, default=0.02)
+    parser.add_argument("--acceleration", type=float, default=0.5)
+    parser.add_argument("--robot-friction", type=float, default=10.0)
+    parser.add_argument("--object-friction", type=float, default=10.0)
+    parser.add_argument("--object-density", type=float, default=10000.0)
+    parser.add_argument("--object-linear-damping", type=float, default=10.0)
+    parser.add_argument("--object-angular-damping", type=float, default=100.0)
+    parser.add_argument("--joint-stiffness", type=float, default=400.0)
+    parser.add_argument("--joint-damping", type=float, default=400.0)
+    parser.add_argument("--joint-armature", type=float, default=0.01)
+    parser.add_argument("--joint-velocity", type=float, default=0.8)
+    parser.add_argument("--solver-position-iterations", type=int, default=4)
+    parser.add_argument("--solver-velocity-iterations", type=int, default=0)
+    parser.add_argument("--contact-offset", type=float, default=0.01)
+    parser.add_argument("--rest-offset", type=float, default=0.0)
+    parser.add_argument("--no-ground", action="store_true")
+    parser.add_argument(
+        "--object-source",
+        choices=("gendex", "prepared"),
+        default="gendex",
+        help="Load GenDex object URDFs or build a one-link URDF from the prepared raw mesh.",
+    )
     return parser.parse_args()
 
 
@@ -89,40 +125,43 @@ def euler_xyz_quaternion(euler: list[float]) -> gymapi.Quat:
     )
 
 
-def make_sim(gym, device_id: int):
+def make_sim(gym, args: argparse.Namespace):
     params = gymapi.SimParams()
-    params.dt = 1.0 / 60.0
-    params.substeps = 2
+    params.dt = 1.0 / args.steps_per_second
+    params.substeps = args.substeps
     params.up_axis = gymapi.UP_AXIS_Z
     params.gravity = gymapi.Vec3(0.0, 0.0, 0.0)
     params.num_client_threads = 0
     params.physx.solver_type = 1
-    params.physx.num_position_iterations = 4
-    params.physx.num_velocity_iterations = 0
+    params.physx.num_position_iterations = args.solver_position_iterations
+    params.physx.num_velocity_iterations = args.solver_velocity_iterations
+    params.physx.contact_offset = args.contact_offset
+    params.physx.rest_offset = args.rest_offset
     params.physx.num_threads = 0
     params.physx.use_gpu = True
     params.physx.num_subscenes = 0
     params.physx.max_gpu_contact_pairs = 8 * 1024 * 1024
     params.use_gpu_pipeline = True
-    sim = gym.create_sim(device_id, -1, gymapi.SIM_PHYSX, params)
+    sim = gym.create_sim(args.device_id, -1, gymapi.SIM_PHYSX, params)
     if sim is None:
         raise RuntimeError("Isaac Gym failed to create the GPU PhysX simulation")
-    plane = gymapi.PlaneParams()
-    plane.normal = gymapi.Vec3(0.0, 0.0, 1.0)
-    plane.distance = 1.0
-    plane.static_friction = 0.1
-    plane.dynamic_friction = 0.1
-    gym.add_ground(sim, plane)
+    if not args.no_ground:
+        plane = gymapi.PlaneParams()
+        plane.normal = gymapi.Vec3(0.0, 0.0, 1.0)
+        plane.distance = 1.0
+        plane.static_friction = 0.1
+        plane.dynamic_friction = 0.1
+        gym.add_ground(sim, plane)
     return sim
 
 
-def hand_asset_options() -> gymapi.AssetOptions:
+def hand_asset_options(args: argparse.Namespace) -> gymapi.AssetOptions:
     options = gymapi.AssetOptions()
-    options.density = 10000.0
+    options.density = args.object_density
     options.fix_base_link = True
     options.disable_gravity = True
     options.flip_visual_attachments = False
-    options.armature = 0.01
+    options.armature = args.joint_armature
     options.use_mesh_materials = True
     options.mesh_normal_mode = gymapi.COMPUTE_PER_VERTEX
     options.override_com = True
@@ -133,11 +172,11 @@ def hand_asset_options() -> gymapi.AssetOptions:
     return options
 
 
-def object_asset_options() -> gymapi.AssetOptions:
+def object_asset_options(args: argparse.Namespace) -> gymapi.AssetOptions:
     options = gymapi.AssetOptions()
-    options.density = 10000.0
-    options.linear_damping = 10.0
-    options.angular_damping = 100.0
+    options.density = args.object_density
+    options.linear_damping = args.object_linear_damping
+    options.angular_damping = args.object_angular_damping
     options.fix_base_link = False
     options.disable_gravity = True
     options.use_mesh_materials = True
@@ -168,6 +207,29 @@ def inertial_link(name: str) -> ET.Element:
         },
     )
     return link
+
+
+def prepared_object_urdf(mesh_path: Path, cache_dir: Path, object_name: str) -> Path:
+    """Create a deterministic one-link URDF using the exact prepared mesh."""
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = object_name.replace("+", "_").replace("/", "_")
+    output = cache_dir / f"{safe_name}.urdf"
+    robot = ET.Element("robot", {"name": safe_name})
+    link = ET.SubElement(robot, "link", {"name": "object"})
+    for tag in ("visual", "collision"):
+        node = ET.SubElement(link, tag)
+        geometry = ET.SubElement(node, "geometry")
+        ET.SubElement(
+            geometry,
+            "mesh",
+            {"filename": str(mesh_path.resolve()), "scale": "1 1 1"},
+        )
+    temporary = output.with_suffix(".urdf.tmp")
+    ET.ElementTree(robot).write(
+        temporary, encoding="utf-8", xml_declaration=True
+    )
+    temporary.replace(output)
+    return output
 
 
 def ensure_movable_native_urdf(
@@ -216,6 +278,8 @@ def ensure_movable_native_urdf(
             "1 0 0",
             "-10",
             "10",
+            "300",
+            "2",
         ),
         (
             "virtual_joint_y",
@@ -225,6 +289,8 @@ def ensure_movable_native_urdf(
             "0 1 0",
             "-10",
             "10",
+            "300",
+            "2",
         ),
         (
             "virtual_joint_z",
@@ -234,6 +300,8 @@ def ensure_movable_native_urdf(
             "0 0 1",
             "-10",
             "10",
+            "300",
+            "2",
         ),
         (
             "virtual_joint_roll",
@@ -243,6 +311,8 @@ def ensure_movable_native_urdf(
             "1 0 0",
             "-6.283185",
             "6.283185",
+            "100",
+            "100",
         ),
         (
             "virtual_joint_pitch",
@@ -252,6 +322,8 @@ def ensure_movable_native_urdf(
             "0 1 0",
             "-6.283185",
             "6.283185",
+            "100",
+            "100",
         ),
         (
             "virtual_joint_yaw",
@@ -261,9 +333,11 @@ def ensure_movable_native_urdf(
             "0 0 1",
             "-6.283185",
             "6.283185",
+            "100",
+            "100",
         ),
     )
-    for name, kind, parent, child, axis, lower, upper in chain:
+    for name, kind, parent, child, axis, lower, upper, effort, velocity in chain:
         joint = ET.Element("joint", {"name": name, "type": kind})
         ET.SubElement(joint, "parent", {"link": parent})
         ET.SubElement(joint, "child", {"link": child})
@@ -275,8 +349,8 @@ def ensure_movable_native_urdf(
             {
                 "lower": lower,
                 "upper": upper,
-                "effort": "300",
-                "velocity": "100",
+                "effort": effort,
+                "velocity": velocity,
             },
         )
         robot.insert(len(links), joint)
@@ -308,7 +382,7 @@ def validate_object(
     if not count:
         return []
 
-    sim = make_sim(gym, args.device_id)
+    sim = make_sim(gym, args)
     try:
         movable_urdf = ensure_movable_native_urdf(
             args.native_hand_root.resolve(), args.native_hand_urdf
@@ -317,14 +391,33 @@ def validate_object(
             sim,
             str(movable_urdf.parent),
             movable_urdf.name,
-            hand_asset_options(),
+            hand_asset_options(args),
         )
-        object_file = f"object/{dataset}/{short_name}/{short_name}.urdf"
+        if args.object_source == "prepared":
+            object_mesh_path = Path(object_group["object_mesh"]).resolve()
+            object_urdf = prepared_object_urdf(
+                object_mesh_path,
+                args.output.resolve().parent / "prepared_object_urdfs",
+                object_name,
+            )
+            object_root = object_urdf.parent
+            object_file = object_urdf.name
+        else:
+            object_mesh_path = (
+                args.gendex_root
+                / "data"
+                / "object"
+                / dataset
+                / short_name
+                / f"{short_name}.stl"
+            )
+            object_root = (args.gendex_root / "data").resolve()
+            object_file = f"object/{dataset}/{short_name}/{short_name}.urdf"
         object_asset = gym.load_asset(
             sim,
-            str((args.gendex_root / "data").resolve()),
+            str(object_root),
             object_file,
-            object_asset_options(),
+            object_asset_options(args),
         )
         hand_dof_names = list(gym.get_asset_dof_names(hand_asset))
         source_joint_names = list(object_group["_joint_names"])
@@ -340,9 +433,10 @@ def validate_object(
         dof_count = len(hand_dof_names)
         dof_props = gym.get_asset_dof_properties(hand_asset)
         dof_props["driveMode"][:].fill(gymapi.DOF_MODE_POS)
-        dof_props["stiffness"][:].fill(400.0)
-        dof_props["velocity"][:].fill(0.8)
-        dof_props["damping"][:].fill(400.0)
+        dof_props["stiffness"][:].fill(args.joint_stiffness)
+        if args.joint_velocity >= 0.0:
+            dof_props["velocity"][:].fill(args.joint_velocity)
+        dof_props["damping"][:].fill(args.joint_damping)
         missing_virtual = [
             name for name in VIRTUAL_ROOT_JOINTS if name not in hand_dof_names
         ]
@@ -375,7 +469,8 @@ def validate_object(
             gym.set_actor_dof_properties(env, hand_actor, dof_props)
             hand_shapes = gym.get_actor_rigid_shape_properties(env, hand_actor)
             for shape in hand_shapes:
-                shape.friction = 10.0
+                shape.friction = args.robot_friction
+                shape.restitution = 0.0
             gym.set_actor_rigid_shape_properties(env, hand_actor, hand_shapes)
             dof_state = np.zeros(dof_count, dtype=gymapi.DofState.dtype)
             dof_state["pos"] = outer[reorder]
@@ -387,7 +482,8 @@ def validate_object(
             )
             object_shapes = gym.get_actor_rigid_shape_properties(env, object_actor)
             for shape in object_shapes:
-                shape.friction = 10.0
+                shape.friction = args.object_friction
+                shape.restitution = 0.0
             gym.set_actor_rigid_shape_properties(env, object_actor, object_shapes)
             object_actor_indices.append(
                 gym.get_actor_index(env, object_actor, gymapi.DOMAIN_SIM)
@@ -414,7 +510,7 @@ def validate_object(
         for _ in range(3):
             gym.simulate(sim)
             gym.fetch_results(sim, True)
-        for _ in range(200):
+        for _ in range(args.closure_steps):
             gym.set_dof_position_target_tensor(
                 sim, gymtorch.unwrap_tensor(inner_targets_tensor)
             )
@@ -429,23 +525,27 @@ def validate_object(
         object_body_indices_t = torch.as_tensor(
             object_body_indices, device=device, dtype=torch.long
         )
-        object_mesh = trimesh.load(
-            args.gendex_root
-            / "data"
-            / "object"
-            / dataset
-            / short_name
-            / f"{short_name}.stl",
-            force="mesh",
+        object_mesh = trimesh.load(object_mesh_path, force="mesh")
+        force_magnitude = (
+            float(object_mesh.volume) * args.object_density * args.acceleration
         )
-        force_magnitude = float(object_mesh.volume) * 5000.0
-        achieved = torch.ones(count, device=device, dtype=torch.bool)
         trajectory = [[] for _ in range(count)]
         zero_forces = torch.zeros(
             rigid.shape[0], 3, device=device, dtype=torch.float32
         )
         zero_torques = torch.zeros_like(zero_forces)
-        for direction_name, direction in DIRECTIONS:
+        directions = (
+            DIRECTIONS_CEDEX
+            if args.direction_order == "cedex"
+            else DIRECTIONS_GENDEX
+        )
+        direction_steps = max(
+            1, round(args.steps_per_second * args.direction_seconds)
+        )
+        gym.refresh_actor_root_state_tensor(sim)
+        overall_start = root[object_actor_indices_t, :3].clone()
+        strict_success = torch.ones(count, device=device, dtype=torch.bool)
+        for direction_name, direction in directions:
             gym.refresh_actor_root_state_tensor(sim)
             direction_start = root[object_actor_indices_t, :3].clone()
             forces = zero_forces.clone()
@@ -453,7 +553,7 @@ def validate_object(
                 direction, device=device, dtype=torch.float32
             )
             forces[object_body_indices_t] = force_magnitude * direction_tensor
-            for _ in range(50):
+            for _ in range(direction_steps):
                 gym.set_dof_position_target_tensor(
                     sim, gymtorch.unwrap_tensor(inner_targets_tensor)
                 )
@@ -468,7 +568,7 @@ def validate_object(
             gym.refresh_actor_root_state_tensor(sim)
             end = root[object_actor_indices_t, :3].clone()
             displacement = torch.linalg.norm(end - direction_start, dim=1)
-            achieved &= displacement < 0.02
+            strict_success &= displacement <= args.threshold
             for index in range(count):
                 trajectory[index].append(
                     {
@@ -478,19 +578,40 @@ def validate_object(
                 )
 
         gym.refresh_actor_root_state_tensor(sim)
+        overall_end = root[object_actor_indices_t, :3].clone()
+        final_displacement = torch.linalg.norm(overall_end - overall_start, dim=1)
+        final_success = final_displacement <= args.threshold
         results = []
         for index, sample in enumerate(samples):
             finite = all(
                 math.isfinite(point["segment_displacement_m"])
                 for point in trajectory[index]
+            ) and math.isfinite(float(final_displacement[index].item()))
+            bounded = bool(
+                torch.max(torch.abs(overall_start[index])).item() < 10.0
+                and torch.max(torch.abs(overall_end[index])).item() < 10.0
+                and final_displacement[index].item() < 10.0
+            )
+            valid = finite and bounded
+            selected_success = (
+                final_success[index]
+                if args.success_mode == "final"
+                else strict_success[index]
             )
             results.append(
                 {
                     "object_name": object_name,
                     "source_index": int(sample["source_index"]),
                     "candidate_rank": int(sample["candidate_rank"]),
-                    "valid_simulation": finite,
-                    "success": bool(achieved[index].item()) if finite else None,
+                    "valid_simulation": valid,
+                    "success": bool(selected_success.item()) if valid else None,
+                    "final_success": bool(final_success[index].item()) if valid else None,
+                    "strict_six_direction_success": (
+                        bool(strict_success[index].item()) if valid else None
+                    ),
+                    "start_position_m": overall_start[index].tolist(),
+                    "end_position_m": overall_end[index].tolist(),
+                    "final_displacement_m": float(final_displacement[index].item()),
                     "trajectory": trajectory[index],
                     "maximum_segment_displacement_m": max(
                         point["segment_displacement_m"]
@@ -511,6 +632,12 @@ def summarize(report: dict) -> None:
     report["valid_trials"] = len(valid)
     report["invalid_trials"] = len(results) - len(valid)
     report["successes"] = sum(row["success"] is True for row in results)
+    report["final_successes"] = sum(
+        row.get("final_success") is True for row in results
+    )
+    report["strict_six_direction_successes"] = sum(
+        row.get("strict_six_direction_success") is True for row in results
+    )
     report["success_rate"] = (
         report["successes"] / report["trials"] if report["trials"] else 0.0
     )
@@ -524,10 +651,16 @@ def summarize(report: dict) -> None:
         rows = [row for row in results if row["object_name"] == object_name]
         valid_rows = [row for row in rows if row["valid_simulation"]]
         successes = sum(row["success"] is True for row in rows)
+        final_successes = sum(row.get("final_success") is True for row in rows)
+        strict_successes = sum(
+            row.get("strict_six_direction_success") is True for row in rows
+        )
         report["object_summaries"].append(
             {
                 "object_name": object_name,
                 "successes": successes,
+                "final_successes": final_successes,
+                "strict_six_direction_successes": strict_successes,
                 "trials": len(rows),
                 "valid_trials": len(valid_rows),
                 "invalid_trials": len(rows) - len(valid_rows),
@@ -544,6 +677,7 @@ def main() -> None:
         "shadowhand",
         "barrett",
         "gendex_barrett",
+        "contactdiff_barrett",
     }:
         raise ValueError(
             "Prepared manifest must use a supported ShadowHand or Barrett hand"
@@ -599,28 +733,51 @@ def main() -> None:
             (args.native_hand_root / args.native_hand_urdf).resolve()
         ),
         "protocol": {
-            "dt": 1.0 / 60.0,
-            "substeps": 2,
+            "dt": 1.0 / args.steps_per_second,
+            "steps_per_second": args.steps_per_second,
+            "substeps": args.substeps,
             "solver_type": "TGS",
-            "solver_position_iterations": 4,
-            "solver_velocity_iterations": 0,
+            "solver_position_iterations": args.solver_position_iterations,
+            "solver_velocity_iterations": args.solver_velocity_iterations,
+            "contact_offset_m": args.contact_offset,
+            "rest_offset_m": args.rest_offset,
             "gravity_mps2": 0.0,
-            "robot_friction": 10.0,
-            "object_friction": 10.0,
-            "object_density_kg_m3": 10000.0,
-            "object_linear_damping": 10.0,
-            "object_angular_damping": 100.0,
-            "joint_stiffness": 400.0,
-            "joint_damping": 400.0,
+            "robot_friction": args.robot_friction,
+            "object_friction": args.object_friction,
+            "object_density_kg_m3": args.object_density,
+            "object_linear_damping": args.object_linear_damping,
+            "object_angular_damping": args.object_angular_damping,
+            "joint_stiffness": args.joint_stiffness,
+            "joint_damping": args.joint_damping,
+            "joint_armature": args.joint_armature,
             "virtual_root_joint_names": list(VIRTUAL_ROOT_JOINTS),
             "virtual_root_stiffness": args.virtual_root_stiffness,
             "virtual_root_damping": args.virtual_root_damping,
-            "joint_velocity": 0.8,
-            "closure_steps": 200,
-            "directions": [name for name, _ in DIRECTIONS],
-            "steps_per_direction": 50,
-            "force_magnitude": "5000 * object STL volume",
-            "success": "every direction segment displacement < 0.02 m",
+            "joint_velocity": (
+                args.joint_velocity
+                if args.joint_velocity >= 0.0
+                else "inherit URDF/importer"
+            ),
+            "closure_steps": args.closure_steps,
+            "direction_seconds": args.direction_seconds,
+            "direction_order": args.direction_order,
+            "directions": [
+                name
+                for name, _ in (
+                    DIRECTIONS_CEDEX
+                    if args.direction_order == "cedex"
+                    else DIRECTIONS_GENDEX
+                )
+            ],
+            "steps_per_direction": max(
+                1, round(args.steps_per_second * args.direction_seconds)
+            ),
+            "acceleration_mps2": args.acceleration,
+            "force_magnitude": "object STL volume * density * acceleration",
+            "success_mode": args.success_mode,
+            "success_threshold_m": args.threshold,
+            "ground_enabled": not args.no_ground,
+            "object_source": args.object_source,
         },
         "expected_trials": expected_trials,
         "results": previous_results,
