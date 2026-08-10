@@ -39,13 +39,24 @@ run_object() {
 printf 'running\n' >"${run_root}/status/validation.status"
 for start in 0 2 4 6 8; do
   pids=()
+  names=()
   for offset in 0 1; do
     index=$((start + offset))
     run_object "${objects[index]}" "${offset}" &
     pids+=("$!")
+    names+=("${objects[index]}")
   done
-  for pid in "${pids[@]}"; do
-    wait "${pid}"
+  retry=()
+  for offset in 0 1; do
+    if ! wait "${pids[offset]}"; then
+      retry+=("${names[offset]}")
+    fi
+  done
+  # Isaac Gym Preview 4 can sporadically fail on the second physical GPU on
+  # newer drivers. Preserve completed objects and retry only failed objects on
+  # the known-good first GPU.
+  for object_name in "${retry[@]}"; do
+    run_object "${object_name}" 0
   done
 done
 
@@ -55,4 +66,3 @@ done
   --output-md "${run_root}/REPORT.md" \
   >"${run_root}/logs/summary.log" 2>&1
 printf 'complete\n' >"${run_root}/status/validation.status"
-
