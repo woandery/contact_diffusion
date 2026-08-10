@@ -15,6 +15,12 @@ config="configs/multigripper_fk_multidex_ood10_barrett_old_steps400.yaml"
 checkpoint="outputs/contact_diffusion_multidex_seen48_success_n235_4x4090/checkpoints/best_val.pt"
 manifest="configs/baseline10_remote_manifest.json"
 run_root="${RUN_ROOT:-outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned}"
+read -r -a generation_gpu_ids <<<"${GENERATION_GPU_IDS:-0 1}"
+read -r -a validation_gpu_ids <<<"${VALIDATION_GPU_IDS:-0 1}"
+if (( ${#generation_gpu_ids[@]} == 0 || ${#validation_gpu_ids[@]} == 0 )); then
+  echo "GENERATION_GPU_IDS and VALIDATION_GPU_IDS must not be empty" >&2
+  exit 2
+fi
 
 objects=(
   contactdb_apple contactdb_camera contactdb_cylinder_medium
@@ -66,7 +72,7 @@ printf 'generating_old_native_candidates\n' >"${run_root}/status/pipeline.status
 generation_inputs=()
 generation_pids=()
 for range_index in 0 1 2 3 4 5 6 7; do
-  gpu=$((range_index % 2))
+  gpu="${generation_gpu_ids[$((range_index % ${#generation_gpu_ids[@]}))]}"
   sample_start=$((range_index * 8))
   shard="range${range_index}"
   generation_inputs+=(--input "${run_root}/candidates/shards/${shard}.json")
@@ -121,9 +127,10 @@ gym_object() {
 
 printf 'validating_isaacgym_aligned\n' >"${run_root}/status/pipeline.status"
 for start in 0 2 4 6 8; do
-  gym_object "${objects[start]}" 0 \
+  gym_object "${objects[start]}" "${validation_gpu_ids[0]}" \
     >"${run_root}/logs/gym_${objects[start]}.log" 2>&1 & gym0=$!
-  gym_object "${objects[start+1]}" 1 \
+  gym_object "${objects[start+1]}" \
+    "${validation_gpu_ids[$((1 % ${#validation_gpu_ids[@]}))]}" \
     >"${run_root}/logs/gym_${objects[start+1]}.log" 2>&1 & gym1=$!
   wait_all "${gym0}" "${gym1}"
 done
@@ -161,9 +168,9 @@ sim_half() {
 }
 
 printf 'validating_isaacsim_aligned\n' >"${run_root}/status/pipeline.status"
-sim_half shard0 0 "${objects[@]:0:5}" \
+sim_half shard0 "${validation_gpu_ids[0]}" "${objects[@]:0:5}" \
   >"${run_root}/logs/sim_shard0.log" 2>&1 & sim0=$!
-sim_half shard1 1 "${objects[@]:5:5}" \
+sim_half shard1 "${validation_gpu_ids[$((1 % ${#validation_gpu_ids[@]}))]}" \
   >"${run_root}/logs/sim_shard1.log" 2>&1 & sim1=$!
 wait_all "${sim0}" "${sim1}"
 
