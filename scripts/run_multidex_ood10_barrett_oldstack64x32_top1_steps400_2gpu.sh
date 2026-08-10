@@ -29,19 +29,22 @@ mkdir -p \
   "${run_root}/results/isaacgym" "${run_root}/results/isaacsim" \
   "${run_root}/logs" "${run_root}/status" "${run_root}/summary"
 
-generate_half() {
-  local gpu="$1" shard="$2"
-  shift 2
+generate_range() {
+  local gpu="$1" shard="$2" sample_start="$3" sample_count="$4"
   local object_args=() object_id
-  for object_id in "$@"; do
+  for object_id in "${objects[@]}"; do
     object_args+=(--object-id "${object_id}")
   done
+  local mish_fallback=0
+  if [[ "${gpu}" == "1" ]]; then mish_fallback=1; fi
+  CONTACTDIFF_MISH_COMPOSITE="${mish_fallback}" \
   CUDA_VISIBLE_DEVICES="${gpu}" "${python_path}" \
     scripts/infer_local_contactdiffusion_grasp.py \
       --config "${config}" --checkpoint "${checkpoint}" \
       --manifest "${manifest}" --manifest-only \
       "${object_args[@]}" --grippers Barrett \
-      --samples-per-object 64 --particles 32 --optimization-steps 400 \
+      --sample-start "${sample_start}" --samples-per-object "${sample_count}" \
+      --particles 32 --optimization-steps 400 \
       --diffusion-steps 50 --fk-initialization enveloping \
       --envelope-side-weight 5.0 --envelope-approach-weight 2.0 \
       --envelope-cosine-margin 0.5 \
@@ -53,35 +56,31 @@ generate_half() {
       --output "${run_root}/candidates/shards/${shard}.json"
 }
 
-wait_pair() {
+wait_all() {
   local failed=0 pid
   for pid in "$@"; do wait "${pid}" || failed=1; done
   (( failed == 0 ))
 }
 
 printf 'generating_old_native_candidates\n' >"${run_root}/status/pipeline.status"
-generate_half 0 gpu0 "${objects[@]:0:5}" \
-  >"${run_root}/logs/generation_gpu0.log" 2>&1 & generation0=$!
-generate_half 1 gpu1 "${objects[@]:5:5}" \
-  >"${run_root}/logs/generation_gpu1.log" 2>&1 & generation1=$!
-if ! wait_pair "${generation0}" "${generation1}"; then
-  # CUDA/driver faults have occasionally affected the second physical GPU on
-  # this platform. Both outputs are resumable; finish each half sequentially
-  # on the known-good first GPU before allowing merge/validation to continue.
-  printf 'retrying_generation_sequentially_on_gpu0\n' \
-    >"${run_root}/status/pipeline.status"
-  generate_half 0 gpu0 "${objects[@]:0:5}" \
-    >>"${run_root}/logs/generation_gpu0.log" 2>&1
-  generate_half 0 gpu1 "${objects[@]:5:5}" \
-    >>"${run_root}/logs/generation_gpu1.log" 2>&1
-fi
+generation_inputs=()
+generation_pids=()
+for range_index in 0 1 2 3 4 5 6 7; do
+  gpu=$((range_index % 2))
+  sample_start=$((range_index * 8))
+  shard="range${range_index}"
+  generation_inputs+=(--input "${run_root}/candidates/shards/${shard}.json")
+  generate_range "${gpu}" "${shard}" "${sample_start}" 8 \
+    >"${run_root}/logs/generation_${shard}.log" 2>&1 &
+  generation_pids+=("$!")
+done
+wait_all "${generation_pids[@]}"
 
 merge_args=()
 for object_id in "${objects[@]}"; do merge_args+=(--object-id "${object_id}"); done
 printf 'merging\n' >"${run_root}/status/pipeline.status"
 "${python_path}" scripts/merge_contactdiffusion_generation_shards.py \
-  --input "${run_root}/candidates/shards/gpu0.json" \
-  --input "${run_root}/candidates/shards/gpu1.json" \
+  "${generation_inputs[@]}" \
   --output "${run_root}/candidates/barrett.json" \
   "${merge_args[@]}" --gripper Barrett --samples-per-object 64 \
   --particles 32 --optimization-steps 400 \
@@ -126,7 +125,7 @@ for start in 0 2 4 6 8; do
     >"${run_root}/logs/gym_${objects[start]}.log" 2>&1 & gym0=$!
   gym_object "${objects[start+1]}" 1 \
     >"${run_root}/logs/gym_${objects[start+1]}.log" 2>&1 & gym1=$!
-  wait_pair "${gym0}" "${gym1}"
+  wait_all "${gym0}" "${gym1}"
 done
 
 sim_half() {
@@ -166,7 +165,7 @@ sim_half shard0 0 "${objects[@]:0:5}" \
   >"${run_root}/logs/sim_shard0.log" 2>&1 & sim0=$!
 sim_half shard1 1 "${objects[@]:5:5}" \
   >"${run_root}/logs/sim_shard1.log" 2>&1 & sim1=$!
-wait_pair "${sim0}" "${sim1}"
+wait_all "${sim0}" "${sim1}"
 
 printf 'summarizing\n' >"${run_root}/status/pipeline.status"
 "${isaac_python}" scripts/summarize_barrett_oldstack_aligned_gym_sim.py \
