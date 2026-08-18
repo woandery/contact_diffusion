@@ -652,31 +652,6 @@ def object_asset_options(
     return options
 
 
-def set_actor_simulation_enabled(gym, env, actor: int, enabled: bool) -> None:
-    """Toggle an already-created actor without changing mass or inertia."""
-
-    properties = gym.get_actor_rigid_body_properties(env, actor)
-    for prop in properties:
-        if enabled:
-            prop.flags &= ~gymapi.RIGID_BODY_DISABLE_SIMULATION
-        else:
-            prop.flags |= gymapi.RIGID_BODY_DISABLE_SIMULATION
-    if not gym.set_actor_rigid_body_properties(
-        env, actor, properties, recomputeInertia=False
-    ):
-        state = "enable" if enabled else "disable"
-        raise RuntimeError(f"Failed to {state} actor simulation")
-
-
-def contact_field(contact, name: str):
-    """Read a RigidContact field from either a pybind object or NumPy row."""
-
-    try:
-        return contact[name]
-    except (IndexError, KeyError, TypeError, ValueError):
-        return getattr(contact, name)
-
-
 def automatic_thumb_links(hand_body_names: list[str]) -> set[str]:
     """Return the anatomical/opposing digit links for supported hands."""
 
@@ -1025,12 +1000,7 @@ def validate_object(
         closure_object_actor_indices = []
         closure_object_body_indices = []
         closure_object_handles = []
-        hand_sim_body_names: dict[int, tuple[int, str]] = {}
-        hand_env_body_names: dict[tuple[int, int], str] = {}
-        dynamic_object_sim_bodies: dict[int, int] = {}
-        dynamic_object_env_bodies: dict[tuple[int, int], int] = {}
-        closure_object_sim_bodies: dict[int, int] = {}
-        closure_object_env_bodies: dict[tuple[int, int], int] = {}
+        hand_body_indices_by_env = []
         recorded_body_indices = []
         diffusion_contacts = []
         outer_targets = []
@@ -1084,17 +1054,7 @@ def validate_object(
                 )
                 for body_index in range(len(hand_body_names))
             ]
-            hand_env_body_indices = [
-                gym.get_actor_rigid_body_index(
-                    env, hand_actor, body_index, gymapi.DOMAIN_ENV
-                )
-                for body_index in range(len(hand_body_names))
-            ]
-            for sim_index, env_body_index, body_name in zip(
-                hand_body_indices, hand_env_body_indices, hand_body_names
-            ):
-                hand_sim_body_names[sim_index] = (env_index, body_name)
-                hand_env_body_names[(env_index, env_body_index)] = body_name
+            hand_body_indices_by_env.append(hand_body_indices)
 
             object_pose = gymapi.Transform()
             closure_object_actor = None
@@ -1117,8 +1077,17 @@ def validate_object(
                 gym.set_actor_rigid_shape_properties(
                     env, closure_object_actor, closure_object_shapes
                 )
+            dynamic_object_pose = gymapi.Transform()
+            if closure_object_actor is not None:
+                dynamic_object_pose.p = gymapi.Vec3(0.0, 0.0, -10.0)
             object_actor = gym.create_actor(
-                env, object_asset, object_pose, "object", env_index, 0, 0
+                env,
+                object_asset,
+                dynamic_object_pose,
+                "object",
+                env_index,
+                0,
+                0,
             )
             object_handles.append(object_actor)
             object_shapes = gym.get_actor_rigid_shape_properties(env, object_actor)
@@ -1126,8 +1095,6 @@ def validate_object(
                 shape.friction = args.object_friction
                 shape.restitution = 0.0
             gym.set_actor_rigid_shape_properties(env, object_actor, object_shapes)
-            if closure_object_actor is not None:
-                set_actor_simulation_enabled(gym, env, object_actor, False)
             if args.video_object_color is not None:
                 object_color = gymapi.Vec3(*args.video_object_color)
                 gym.set_rigid_body_color(
@@ -1146,16 +1113,6 @@ def validate_object(
                     env, object_actor, object_body_name, gymapi.DOMAIN_SIM
                 )
             )
-            dynamic_object_env_index = gym.find_actor_rigid_body_index(
-                env,
-                object_actor,
-                object_body_name,
-                gymapi.DOMAIN_ENV,
-            )
-            dynamic_object_sim_bodies[object_body_indices[-1]] = env_index
-            dynamic_object_env_bodies[
-                (env_index, dynamic_object_env_index)
-            ] = env_index
             if closure_object_actor is None:
                 closure_object_actor = object_actor
                 closure_object_body_name = object_body_name
@@ -1177,18 +1134,6 @@ def validate_object(
                     gymapi.DOMAIN_SIM,
                 )
             )
-            closure_object_env_index = gym.find_actor_rigid_body_index(
-                env,
-                closure_object_actor,
-                closure_object_body_name,
-                gymapi.DOMAIN_ENV,
-            )
-            closure_object_sim_bodies[
-                closure_object_body_indices[-1]
-            ] = env_index
-            closure_object_env_bodies[
-                (env_index, closure_object_env_index)
-            ] = env_index
             recorded_body_indices.append(
                 hand_body_indices + [closure_object_body_indices[-1]]
             )
@@ -1407,6 +1352,9 @@ def validate_object(
         )
         root = gymtorch.wrap_tensor(gym.acquire_actor_root_state_tensor(sim))
         rigid = gymtorch.wrap_tensor(gym.acquire_rigid_body_state_tensor(sim))
+        net_contact_force = gymtorch.wrap_tensor(
+            gym.acquire_net_contact_force_tensor(sim)
+        )
         object_actor_indices_t = torch.as_tensor(
             object_actor_indices, device=device, dtype=torch.long
         )
@@ -1416,8 +1364,19 @@ def validate_object(
         closure_object_actor_indices_t = torch.as_tensor(
             closure_object_actor_indices, device=device, dtype=torch.long
         )
+        closure_object_body_indices_t = torch.as_tensor(
+            closure_object_body_indices, device=device, dtype=torch.long
+        )
+        hand_body_indices_t = torch.as_tensor(
+            np.asarray(hand_body_indices_by_env, dtype=np.int64),
+            device=device,
+            dtype=torch.long,
+        )
         object_actor_indices_i32 = torch.as_tensor(
             object_actor_indices, device=device, dtype=torch.int32
+        )
+        closure_object_actor_indices_i32 = torch.as_tensor(
+            closure_object_actor_indices, device=device, dtype=torch.int32
         )
         thumb_links = automatic_thumb_links(hand_body_names)
         camera_default_offset = np.asarray(
@@ -1593,8 +1552,9 @@ def validate_object(
         telemetry_positions: list[np.ndarray] = []
         telemetry_linear_velocities: list[np.ndarray] = []
         telemetry_angular_velocities: list[np.ndarray] = []
-        telemetry_normal_impulse_sums: list[np.ndarray] = []
-        telemetry_normal_impulse_maxima: list[np.ndarray] = []
+        telemetry_net_impulse_vectors: list[np.ndarray] = []
+        telemetry_net_impulse_magnitudes: list[np.ndarray] = []
+        telemetry_max_hand_link_impulses: list[np.ndarray] = []
         telemetry_contact_counts: list[np.ndarray] = []
         first_contact_steps = np.full(count, -1, dtype=np.int32)
         thumb_first_contact_steps = np.full(count, -1, dtype=np.int32)
@@ -1604,43 +1564,6 @@ def validate_object(
         contact_link_impulse_totals: list[dict[str, float]] = [
             {} for _ in range(count)
         ]
-
-        def match_object_hand_contact(
-            contact,
-            object_sim_bodies: dict[int, int],
-            object_env_bodies: dict[tuple[int, int], int],
-            known_env_index: int | None = None,
-        ) -> tuple[int, str] | None:
-            env0 = int(contact_field(contact, "env0"))
-            env1 = int(contact_field(contact, "env1"))
-            body0 = int(contact_field(contact, "body0"))
-            body1 = int(contact_field(contact, "body1"))
-            for object_body, object_env, hand_body, hand_env in (
-                (body0, env0, body1, env1),
-                (body1, env1, body0, env0),
-            ):
-                if known_env_index is not None:
-                    env_index = object_env_bodies.get(
-                        (known_env_index, object_body)
-                    )
-                    hand_name = hand_env_body_names.get(
-                        (known_env_index, hand_body)
-                    )
-                    if env_index is not None and hand_name is not None:
-                        return env_index, hand_name
-                env_index = object_sim_bodies.get(object_body)
-                hand_match = hand_sim_body_names.get(hand_body)
-                if (
-                    env_index is not None
-                    and hand_match is not None
-                    and hand_match[0] == env_index
-                ):
-                    return env_index, hand_match[1]
-                env_index = object_env_bodies.get((object_env, object_body))
-                hand_name = hand_env_body_names.get((hand_env, hand_body))
-                if env_index is not None and hand_name is not None:
-                    return env_index, hand_name
-            return None
 
         def capture_closure_telemetry(
             phase: str, *, dynamic_object: bool = False
@@ -1657,52 +1580,53 @@ def validate_object(
             positions = states[:, :3].detach().cpu().numpy().copy()
             linear_velocity = states[:, 7:10].detach().cpu().numpy().copy()
             angular_velocity = states[:, 10:13].detach().cpu().numpy().copy()
-            impulse_sum = np.zeros(count, dtype=np.float32)
-            impulse_max = np.zeros(count, dtype=np.float32)
-            contact_count = np.zeros(count, dtype=np.int32)
+            gym.refresh_net_contact_force_tensor(sim)
+            object_body_tensor = (
+                object_body_indices_t
+                if dynamic_object
+                else closure_object_body_indices_t
+            )
+            dt = 1.0 / float(args.steps_per_second)
+            object_impulse_vector_t = net_contact_force[object_body_tensor] * dt
+            object_impulse_magnitude_t = torch.linalg.norm(
+                object_impulse_vector_t, dim=1
+            )
+            hand_link_impulse_t = torch.linalg.norm(
+                net_contact_force[hand_body_indices_t] * dt, dim=2
+            )
+            object_impulse_vector = (
+                object_impulse_vector_t.detach().cpu().numpy().copy()
+            )
+            object_impulse_magnitude = (
+                object_impulse_magnitude_t.detach().cpu().numpy().copy()
+            )
+            hand_link_impulse = (
+                hand_link_impulse_t.detach().cpu().numpy().copy()
+            )
+            active = (
+                hand_link_impulse > args.contact_impulse_epsilon
+            ) & (
+                object_impulse_magnitude[:, None]
+                > args.contact_impulse_epsilon
+            )
+            contact_count = active.sum(axis=1).astype(np.int32)
+            max_hand_link_impulse = hand_link_impulse.max(axis=1)
             frame_links: list[dict[str, float]] = [
-                {} for _ in range(count)
+                {
+                    hand_body_names[body_index]: float(
+                        hand_link_impulse[env_index, body_index]
+                    )
+                    for body_index in np.flatnonzero(active[env_index])
+                }
+                for env_index in range(count)
             ]
-            object_sim_bodies = (
-                dynamic_object_sim_bodies
-                if dynamic_object
-                else closure_object_sim_bodies
-            )
-            object_env_bodies = (
-                dynamic_object_env_bodies
-                if dynamic_object
-                else closure_object_env_bodies
-            )
-            for known_env_index, env in enumerate(envs):
-                for contact in gym.get_env_rigid_contacts(env):
-                    match = match_object_hand_contact(
-                        contact,
-                        object_sim_bodies,
-                        object_env_bodies,
-                        known_env_index=known_env_index,
-                    )
-                    if match is None:
-                        continue
-                    env_index, hand_link = match
-                    normal_impulse = abs(
-                        float(contact_field(contact, "lambda"))
-                    )
-                    if normal_impulse <= args.contact_impulse_epsilon:
-                        continue
-                    impulse_sum[env_index] += normal_impulse
-                    impulse_max[env_index] = max(
-                        impulse_max[env_index], normal_impulse
-                    )
-                    contact_count[env_index] += 1
-                    frame_links[env_index][hand_link] = (
-                        frame_links[env_index].get(hand_link, 0.0)
-                        + normal_impulse
-                    )
+            for env_index, links in enumerate(frame_links):
+                for hand_link, impulse in links.items():
                     contact_link_impulse_totals[env_index][hand_link] = (
                         contact_link_impulse_totals[env_index].get(
                             hand_link, 0.0
                         )
-                        + normal_impulse
+                        + impulse
                     )
             step = capture_states.physics_step
             for index, links in enumerate(frame_links):
@@ -1724,8 +1648,9 @@ def validate_object(
             telemetry_positions.append(positions)
             telemetry_linear_velocities.append(linear_velocity)
             telemetry_angular_velocities.append(angular_velocity)
-            telemetry_normal_impulse_sums.append(impulse_sum)
-            telemetry_normal_impulse_maxima.append(impulse_max)
+            telemetry_net_impulse_vectors.append(object_impulse_vector)
+            telemetry_net_impulse_magnitudes.append(object_impulse_magnitude)
+            telemetry_max_hand_link_impulses.append(max_hand_link_impulse)
             telemetry_contact_counts.append(contact_count)
 
         dof_targets = torch.as_tensor(
@@ -1789,25 +1714,31 @@ def validate_object(
             .copy()
         )
         if args.closure_object_mode == "fixed_until_inner":
-            # Transfer the fixed actor pose into the disabled dynamic actor,
-            # explicitly zero both velocity vectors, and then atomically swap
-            # which actor participates in simulation before the inner hold.
+            # Swap the active copies using the supported GPU root-state tensor:
+            # dynamic moves from the parking pose to the fixed pose with zero
+            # velocity, while the fixed copy is parked far below the hand.
             root[object_actor_indices_t, :7] = root[
                 closure_object_actor_indices_t, :7
             ]
             root[object_actor_indices_t, 7:13] = 0.0
+            root[closure_object_actor_indices_t, 0:2] = root[
+                object_actor_indices_t, 0:2
+            ]
+            root[closure_object_actor_indices_t, 2] = -10.0
+            root[closure_object_actor_indices_t, 7:13] = 0.0
+            swapped_actor_indices_i32 = torch.cat(
+                (
+                    object_actor_indices_i32,
+                    closure_object_actor_indices_i32,
+                )
+            )
             if not gym.set_actor_root_state_tensor_indexed(
                 sim,
                 gymtorch.unwrap_tensor(root),
-                gymtorch.unwrap_tensor(object_actor_indices_i32),
-                len(object_actor_indices),
+                gymtorch.unwrap_tensor(swapped_actor_indices_i32),
+                int(swapped_actor_indices_i32.numel()),
             ):
-                raise RuntimeError("Failed to initialize released object states")
-            for env, fixed_actor, dynamic_actor in zip(
-                envs, closure_object_handles, object_handles
-            ):
-                set_actor_simulation_enabled(gym, env, fixed_actor, False)
-                set_actor_simulation_enabled(gym, env, dynamic_actor, True)
+                raise RuntimeError("Failed to swap fixed/dynamic object states")
         for _ in range(args.inner_hold_steps):
             gym.set_dof_position_target_tensor(
                 sim, gymtorch.unwrap_tensor(inner_targets_tensor)
@@ -1835,16 +1766,25 @@ def validate_object(
             angular_velocity_frames = np.stack(
                 telemetry_angular_velocities, axis=0
             )
-            normal_impulse_sum_frames = np.stack(
-                telemetry_normal_impulse_sums, axis=0
+            net_impulse_vector_frames = np.stack(
+                telemetry_net_impulse_vectors, axis=0
             )
-            normal_impulse_max_frames = np.stack(
-                telemetry_normal_impulse_maxima, axis=0
+            net_impulse_magnitude_frames = np.stack(
+                telemetry_net_impulse_magnitudes, axis=0
+            )
+            max_hand_link_impulse_frames = np.stack(
+                telemetry_max_hand_link_impulses, axis=0
             )
             contact_count_frames = np.stack(telemetry_contact_counts, axis=0)
-            cumulative_normal_impulse = normal_impulse_sum_frames.sum(axis=0)
-            peak_frame_normal_impulse = normal_impulse_sum_frames.max(axis=0)
-            max_single_contact_normal_impulse = normal_impulse_max_frames.max(axis=0)
+            cumulative_net_contact_impulse = (
+                net_impulse_magnitude_frames.sum(axis=0)
+            )
+            peak_frame_net_contact_impulse = (
+                net_impulse_magnitude_frames.max(axis=0)
+            )
+            max_hand_link_net_contact_impulse = (
+                max_hand_link_impulse_frames.max(axis=0)
+            )
             maximum_linear_speed = np.linalg.norm(
                 linear_velocity_frames, axis=2
             ).max(axis=0)
@@ -1860,7 +1800,11 @@ def validate_object(
             )
             np.savez_compressed(
                 telemetry_path,
-                schema=np.asarray("contactdiff-physx-closure-telemetry-v1"),
+                schema=np.asarray("contactdiff-physx-closure-telemetry-v2"),
+                contact_measurement=np.asarray(
+                    "per-rigid-body net contact force tensor times dt; "
+                    "not per-contact normal lambda"
+                ),
                 closure_object_mode=np.asarray(args.closure_object_mode),
                 steps_per_second=np.asarray(
                     args.steps_per_second, dtype=np.int32
@@ -1880,9 +1824,14 @@ def validate_object(
                 object_position_m=position_frames,
                 object_linear_velocity_mps=linear_velocity_frames,
                 object_angular_velocity_radps=angular_velocity_frames,
-                normal_impulse_sum_ns=normal_impulse_sum_frames,
-                normal_impulse_max_ns=normal_impulse_max_frames,
-                contact_pair_count=contact_count_frames,
+                object_net_contact_impulse_vector_ns=net_impulse_vector_frames,
+                object_net_contact_impulse_magnitude_ns=(
+                    net_impulse_magnitude_frames
+                ),
+                max_hand_link_net_contact_impulse_ns=(
+                    max_hand_link_impulse_frames
+                ),
+                active_hand_link_count=contact_count_frames,
                 first_contact_step=first_contact_steps,
                 thumb_first_contact_step=thumb_first_contact_steps,
                 first_contact_link=np.asarray(
@@ -1891,9 +1840,9 @@ def validate_object(
                 thumb_link_names=np.asarray(sorted(thumb_links)),
             )
         else:
-            cumulative_normal_impulse = np.zeros(count, dtype=np.float32)
-            peak_frame_normal_impulse = np.zeros(count, dtype=np.float32)
-            max_single_contact_normal_impulse = np.zeros(
+            cumulative_net_contact_impulse = np.zeros(count, dtype=np.float32)
+            peak_frame_net_contact_impulse = np.zeros(count, dtype=np.float32)
+            max_hand_link_net_contact_impulse = np.zeros(
                 count, dtype=np.float32
             )
             maximum_linear_speed = np.zeros(count, dtype=np.float32)
@@ -2005,7 +1954,11 @@ def validate_object(
                         for point in trajectory[index]
                     ),
                     "closure_telemetry": ({
-                        "schema": "contactdiff-physx-closure-summary-v1",
+                        "schema": "contactdiff-physx-closure-summary-v2",
+                        "contact_measurement": (
+                            "per-rigid-body net contact force tensor times dt; "
+                            "not per-contact normal lambda"
+                        ),
                         "object_mode": args.closure_object_mode,
                         "frame_count": len(telemetry_steps),
                         "first_contact_observed": bool(
@@ -2083,14 +2036,14 @@ def validate_object(
                         "outer_to_inner_displacement_m": float(
                             np.linalg.norm(outer_to_inner_vectors[index])
                         ),
-                        "cumulative_normal_impulse_ns": float(
-                            cumulative_normal_impulse[index]
+                        "cumulative_net_contact_impulse_ns": float(
+                            cumulative_net_contact_impulse[index]
                         ),
-                        "peak_frame_normal_impulse_ns": float(
-                            peak_frame_normal_impulse[index]
+                        "peak_frame_net_contact_impulse_ns": float(
+                            peak_frame_net_contact_impulse[index]
                         ),
-                        "max_single_contact_normal_impulse_ns": float(
-                            max_single_contact_normal_impulse[index]
+                        "max_hand_link_net_contact_impulse_ns": float(
+                            max_hand_link_net_contact_impulse[index]
                         ),
                         "maximum_object_linear_speed_mps": float(
                             maximum_linear_speed[index]
@@ -2098,7 +2051,7 @@ def validate_object(
                         "maximum_object_angular_speed_radps": float(
                             maximum_angular_speed[index]
                         ),
-                        "per_link_cumulative_normal_impulse_ns": dict(
+                        "per_link_cumulative_net_contact_impulse_ns": dict(
                             sorted(contact_link_impulse_totals[index].items())
                         ),
                         "dense_npz": (
@@ -2352,15 +2305,18 @@ def main() -> None:
             "closure_ab_experiment": args.closure_ab_experiment,
             "closure_object_mode": args.closure_object_mode,
             "closure_object_transition": (
-                "fixed-base collision actor disabled at inner; zero-velocity "
-                "dynamic actor enabled at the identical pose"
+                "fixed-base collision actor parked at inner via GPU root-state "
+                "tensor; zero-velocity dynamic actor moved to the identical pose"
                 if args.closure_object_mode == "fixed_until_inner"
                 else "dynamic from outer through force evaluation"
             ),
             "closure_telemetry": {
                 "enabled": args.closure_telemetry_dir is not None,
                 "dense_format": "compressed NPZ, frame-major",
-                "normal_impulse_source": "PhysX RigidContact.lambda magnitude",
+                "contact_impulse_source": (
+                    "GPU per-rigid-body net contact force tensor times dt"
+                ),
+                "exact_per_contact_normal_lambda_available": False,
                 "contact_impulse_epsilon_ns": args.contact_impulse_epsilon,
                 "thumb_link_detection": (
                     "ShadowHand th*; Barrett bh_finger_3*"

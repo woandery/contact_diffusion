@@ -173,11 +173,11 @@ def telemetry_metrics(rows: list[dict], prefix: str) -> dict:
         "outer_to_inner_displacement_m": distribution(
             "outer_to_inner_displacement_m"
         ),
-        "cumulative_normal_impulse_ns": distribution(
-            "cumulative_normal_impulse_ns"
+        "cumulative_net_contact_impulse_ns": distribution(
+            "cumulative_net_contact_impulse_ns"
         ),
-        "peak_frame_normal_impulse_ns": distribution(
-            "peak_frame_normal_impulse_ns"
+        "peak_frame_net_contact_impulse_ns": distribution(
+            "peak_frame_net_contact_impulse_ns"
         ),
         "maximum_object_linear_speed_mps": distribution(
             "maximum_object_linear_speed_mps"
@@ -262,8 +262,8 @@ def main() -> None:
         "outer_to_first_contact_displacement_m",
         "first_contact_to_inner_displacement_m",
         "outer_to_inner_displacement_m",
-        "cumulative_normal_impulse_ns",
-        "peak_frame_normal_impulse_ns",
+        "cumulative_net_contact_impulse_ns",
+        "peak_frame_net_contact_impulse_ns",
         "maximum_object_linear_speed_mps",
         "maximum_object_angular_speed_radps",
     )
@@ -314,6 +314,10 @@ def main() -> None:
             "fixed-base object through outer/closure; zero-velocity dynamic "
             "object enabled at inner"
         ),
+        "contact_measurement": (
+            "per-rigid-body GPU net contact force tensor times dt; not exact "
+            "per-contact normal lambda"
+        ),
         "invalid_counts_as_failure": True,
         "paired_integrity": {
             "a_trials": len(a_rows),
@@ -344,6 +348,7 @@ def main() -> None:
         "- B：outer settle/closure 使用 fixed-base 物体；inner 边界清零速度并切换同位姿 dynamic 物体。",
         "- A/B 的候选、batch 顺序、GPU 分配、inner hold 和六方向参数完全相同。",
         "- invalid trial 按失败计入。",
+        "- 接触冲量为 GPU 刚体净接触力 × dt；Preview 4 GPU pipeline 不提供逐接触点精确 normal lambda。",
         "",
         "## 成功结果",
         "",
@@ -365,7 +370,7 @@ def main() -> None:
         "",
         "## 闭合阶段遥测",
         "",
-        "| 范围 | 条件 | 首接触率 | 首接触时间中位数(s) | 拇指接触率 | outer→inner中位数(m) | 累计法向冲量中位数(N·s) | 最大线速度P95(m/s) |",
+        "| 范围 | 条件 | 首接触率 | 首接触时间中位数(s) | 拇指接触率 | outer→inner中位数(m) | 累计净接触冲量中位数(N·s) | 最大线速度P95(m/s) |",
         "|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for name in ("overall", "barrett", "shadowhand"):
@@ -376,7 +381,7 @@ def main() -> None:
                 f"{fmt_num(item['first_contact_time_s']['median'])} | "
                 f"{fmt_pct(item['thumb_contact_rate'])} | "
                 f"{fmt_num(item['outer_to_inner_displacement_m']['median'], 6)} | "
-                f"{fmt_num(item['cumulative_normal_impulse_ns']['median'], 6)} | "
+                f"{fmt_num(item['cumulative_net_contact_impulse_ns']['median'], 6)} | "
                 f"{fmt_num(item['maximum_object_linear_speed_mps']['p95'])} |"
             )
     lines += [
