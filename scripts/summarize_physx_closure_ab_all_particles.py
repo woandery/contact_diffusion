@@ -240,6 +240,11 @@ def main() -> None:
     parser.add_argument("--output-csv", type=Path)
     parser.add_argument("--output-md", type=Path)
     parser.add_argument("--allow-incomplete", action="store_true")
+    parser.add_argument("--expected-trials", type=int, default=EXPECTED_TRIALS)
+    parser.add_argument(
+        "--report-title",
+        default="step-50k 全粒子闭合阶段 PhysX A/B",
+    )
     args = parser.parse_args()
 
     root = args.run_root.resolve()
@@ -254,8 +259,12 @@ def main() -> None:
         raise ValueError(
             f"unpaired trials: missing A={len(missing_a)} missing B={len(missing_b)}"
         )
-    if not args.allow_incomplete and len(a_rows) != EXPECTED_TRIALS:
-        raise ValueError(f"paired {len(a_rows)} trials, expected {EXPECTED_TRIALS}")
+    if args.expected_trials < 1:
+        raise ValueError(f"expected trials must be positive: {args.expected_trials}")
+    if not args.allow_incomplete and len(a_rows) != args.expected_trials:
+        raise ValueError(
+            f"paired {len(a_rows)} trials, expected {args.expected_trials}"
+        )
 
     paired = []
     scalar_names = (
@@ -319,6 +328,7 @@ def main() -> None:
             "per-contact normal lambda"
         ),
         "invalid_counts_as_failure": True,
+        "expected_paired_trials": args.expected_trials,
         "paired_integrity": {
             "a_trials": len(a_rows),
             "b_trials": len(b_rows),
@@ -341,7 +351,7 @@ def main() -> None:
 
     overall = scopes["overall"]
     lines = [
-        "# step-50k 全粒子闭合阶段 PhysX A/B",
+        f"# {args.report_title}",
         "",
         f"- 严格配对姿态：{overall['paired_trials']:,}",
         "- A：物体从 outer 起始即为 dynamic。",

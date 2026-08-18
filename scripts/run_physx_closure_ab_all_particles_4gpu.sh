@@ -12,7 +12,9 @@ batch_size="${CONTACTDIFF_AB_BATCH_SIZE:-512}"
 inner_hold_steps="${CONTACTDIFF_AB_INNER_HOLD_STEPS:-100}"
 num_gpus="${CONTACTDIFF_AB_GPUS:-4}"
 smoke="${CONTACTDIFF_AB_SMOKE:-0}"
-total_samples=2048
+total_samples="${CONTACTDIFF_AB_SAMPLES_PER_HAND_OBJECT:-2048}"
+selection="${CONTACTDIFF_AB_SELECTION:-all_particles}"
+report_title="${CONTACTDIFF_AB_REPORT_TITLE:-step-50k 全粒子闭合阶段 PhysX A/B}"
 
 objects=(
   contactdb_apple
@@ -44,6 +46,10 @@ if [[ ! -d "${source_run_root}/prepared" ]]; then
   echo "missing frozen prepared manifests: ${source_run_root}/prepared" >&2
   exit 1
 fi
+if [[ ! "${total_samples}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "invalid samples per hand/object: ${total_samples}" >&2
+  exit 1
+fi
 if ((batch_size < 1 || inner_hold_steps < 0 || num_gpus < 1)); then
   echo "invalid batch/hold/GPU configuration" >&2
   exit 1
@@ -69,6 +75,7 @@ printf '%s\n' \
   "batch_size=${batch_size}" \
   "inner_hold_steps=${inner_hold_steps}" \
   "gpus=${num_gpus}" \
+  "selection=${selection}" \
   "pairing=same candidate, batch order, and GPU; A then B" \
   >"${run_root}/supervisor/config"
 
@@ -164,8 +171,11 @@ if ((failed)); then
   exit 1
 fi
 
-summary_args=(--run-root "${run_root}")
-if [[ "${smoke}" == "1" ]]; then summary_args+=(--allow-incomplete); fi
+summary_args=(
+  --run-root "${run_root}"
+  --expected-trials "$((${#tasks[@]} * total_samples))"
+  --report-title "${report_title}"
+)
 "${python_path}" "${project_root}/scripts/summarize_physx_closure_ab_all_particles.py" \
   "${summary_args[@]}" >"${run_root}/supervisor/summary.log" 2>&1
 printf 'complete\n' >"${run_root}/supervisor/status"
