@@ -108,8 +108,8 @@ def main() -> None:
     root = args.run_root.resolve()
     objects = list(json.loads(args.object_map.read_text(encoding="utf-8")))
     paths = sorted((root / "streaming").glob("gpu*.sqlite"))
-    if len(paths) != 4:
-        raise ValueError(f"Expected four worker databases, found {len(paths)}")
+    if not paths:
+        raise ValueError("No worker databases found")
     databases = [sqlite3.connect(path) for path in paths]
     overall = aggregate(databases, args.repeats)
     expected_unique = 2 * 48 * 128 * 128
@@ -127,8 +127,9 @@ def main() -> None:
         for object_id in objects
     }
     summary = {
-        "schema": "contactdiff-seen48-128x128-physx-r1000-streaming-summary-v1",
+        "schema": "contactdiff-seen48-128x128-physx-streaming-summary-v1",
         "run_root": str(root),
+        "worker_databases": len(paths),
         "repeats": args.repeats,
         "invalid_counts_as_failure": True,
         "overall": overall,
@@ -170,10 +171,10 @@ def main() -> None:
                 )
 
     lines = [
-        "# seen48 双手 128×128×1000 全粒子 GPU PhysX 稳定性报告",
+        f"# seen48 双手 128×128×{args.repeats} 全粒子 GPU PhysX 稳定性报告",
         "",
         "- Barrett 与 ShadowHand 均覆盖训练集 48 个 seen 物体。",
-        "- 每物体 128 个 diffusion set；每 set 128 个 FK 粒子；每个抓取姿态重复 1000 次相同参数 GPU PhysX。",
+        f"- 每物体 128 个 diffusion set；每 set 128 个 FK 粒子；每个抓取姿态重复 {args.repeats} 次相同参数 GPU PhysX。",
         f"- 唯一抓取姿态：{overall['unique_grasps']:,}；总 PhysX trials：{overall['repeat_trials']:,}。",
         "- 无姿态/物理参数扰动；各 repeat 仅使用确定性随机排列改变并行环境邻接次序。",
         "- invalid trial 按失败计入固定分母；原始重复轨迹采用 SQLite 流式聚合，不长期保存。",
@@ -190,7 +191,7 @@ def main() -> None:
     lines.extend(["", "## 逐物体/手型", "", "| 手型/物体 | final 成功率 | invalid | 二值稳定率 |", "|---|---:|---:|---:|"])
     for key, item in per_object.items():
         lines.append(f"| {key} | {pct(item['final_success_rate'])} | {item['invalid_trials']:,} | {pct(item['binary_outcome_stability_rate'])} |")
-    lines.extend(["", "完整逐抓取 1000 次聚合统计见 `per_grasp_stability.csv`。", ""])
+    lines.extend(["", f"完整逐抓取 {args.repeats} 次聚合统计见 `per_grasp_stability.csv`。", ""])
     (root / "FINAL_REPORT_ZH.md").write_text("\n".join(lines), encoding="utf-8")
     for database in databases:
         database.close()
