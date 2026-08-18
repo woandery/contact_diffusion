@@ -11,6 +11,8 @@ run_root="${CONTACTDIFF_AB_RUN_ROOT:-${project_root}/outputs/basic_experiment_ba
 batch_size="${CONTACTDIFF_AB_BATCH_SIZE:-512}"
 inner_hold_steps="${CONTACTDIFF_AB_INNER_HOLD_STEPS:-100}"
 num_gpus="${CONTACTDIFF_AB_GPUS:-4}"
+smoke="${CONTACTDIFF_AB_SMOKE:-0}"
+total_samples=2048
 
 objects=(
   contactdb_apple
@@ -24,6 +26,10 @@ objects=(
   ycb_010_potted_meat_can
   ycb_005_tomato_soup_can
 )
+if [[ "${smoke}" == "1" ]]; then
+  objects=(contactdb_apple)
+  total_samples=4
+fi
 conditions=(A_dynamic B_fixed)
 
 if [[ ! -x "${python_path}" ]]; then
@@ -56,8 +62,10 @@ printf 'running\n' >"${run_root}/supervisor/status"
 printf '%s\n' \
   "source_run_root=${source_run_root}" \
   "run_root=${run_root}" \
-  "paired_unique_trials=40960" \
-  "total_physx_trials=81920" \
+  "smoke=${smoke}" \
+  "samples_per_hand_object=${total_samples}" \
+  "paired_unique_trials=$((${#tasks[@]} * total_samples))" \
+  "total_physx_trials=$((2 * ${#tasks[@]} * total_samples))" \
   "batch_size=${batch_size}" \
   "inner_hold_steps=${inner_hold_steps}" \
   "gpus=${num_gpus}" \
@@ -99,9 +107,11 @@ worker() {
       telemetry_dir="${run_root}/telemetry/${condition}/${hand}/${object_id}"
       log_dir="${run_root}/logs/${condition}/${hand}/${object_id}"
       mkdir -p "${result_dir}" "${telemetry_dir}" "${log_dir}"
-      for ((start=0; start<2048; start+=batch_size)); do
+      for ((start=0; start<total_samples; start+=batch_size)); do
         count="${batch_size}"
-        if ((start + count > 2048)); then count=$((2048 - start)); fi
+        if ((start + count > total_samples)); then
+          count=$((total_samples - start))
+        fi
         output="${result_dir}/batch_$(printf '%04d' "${start}")_$(printf '%04d' "$((start + count - 1))").json"
         if [[ -s "${output}" ]] && "${python_path}" -c \
           'import json,sys; d=json.load(open(sys.argv[1])); raise SystemExit(not (d.get("status")=="complete" and len(d.get("results",[]))==int(sys.argv[2])))' \
@@ -154,9 +164,10 @@ if ((failed)); then
   exit 1
 fi
 
+summary_args=(--run-root "${run_root}")
+if [[ "${smoke}" == "1" ]]; then summary_args+=(--allow-incomplete); fi
 "${python_path}" "${project_root}/scripts/summarize_physx_closure_ab_all_particles.py" \
-  --run-root "${run_root}" \
-  >"${run_root}/supervisor/summary.log" 2>&1
+  "${summary_args[@]}" >"${run_root}/supervisor/summary.log" 2>&1
 printf 'complete\n' >"${run_root}/supervisor/status"
 date -u +%Y-%m-%dT%H:%M:%SZ >"${run_root}/supervisor/completed_at_utc"
 printf 'complete: %s\n' "${run_root}"
