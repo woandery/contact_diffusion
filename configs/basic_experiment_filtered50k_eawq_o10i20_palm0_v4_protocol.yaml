@@ -1,0 +1,165 @@
+schema: contactdiff-basic-eawq-execution-protocol-v1
+protocol_id: contactdiff-multidex-filtered50k-fk64x32x400-eawq-rankfusion-dro-gym-o10i20-palm0-v4
+supersedes: contactdiff-multidex-filtered50k-fk64x32x400-eawq-rankfusion-dro-gym-o10i20-v3
+base_protocol_id: contactdiff-multidex-filtered50k-fk64x32x400-eawq-rankfusion-dro-gym-o10i20-v3
+
+model_checkpoint:
+  family: multidex_filtered_barrett_shadow_balanced_n35
+  path: outputs/contact_diffusion_multidex_filtered_barrett_shadow_balanced_n35_4x4090/checkpoints/step_00050000.pt
+  step: 50000
+  sha256: 0934a15218f0f35cfd978d207e5c374556c0f8afbfb597e0489795d15ae97cc5
+  selection: explicit_step_checkpoint
+
+contact_source:
+  source: diffusion_checkpoint_step50000
+  representation: projected_object_surface_contacts
+  rerun_diffusion: true
+  diffusion_steps: 50
+  sampler: ddim
+  project_to_surface: true
+  base_seed: 20260808
+  seed_formula: base_seed + 1000003*global_hand_index + 1009*global_object_index + sample_index
+
+generation:
+  contact_sets_per_object: 64
+  particles_per_contact_set: 32
+  optimization_steps: 400
+  retained_per_contact_set: 32
+
+fk_optimization:
+  learning_rate: 0.005
+  contact_weight: 100.0
+  penetration_weight: 100.0
+  self_collision_weight: 100.0
+  approach_weight: 2.0
+  joint_regularization: 0.001
+  force_closure_weight: 0.0
+  dfc_weight: 0.0
+  palm_distance_computation_enabled: true
+  note: palm-distance remains a diagnostic and feasibility gate; its gradient weight is zero for both hands in v4
+
+ranking:
+  name: fusion_old_full_residual
+  version: eawq_rank_fusion_v1
+  computation_mode: exact_ranking_only
+  ranking_only: true
+  ranking_equivalence: exact_same_topk_as_full_diagnostics
+  scope: within_each_contact_set
+  feasibility_gate: feasible_first
+  distal_metric: old_eawq_weighted_mean_residual
+  full_hand_metric: full_hand_weighted_mean_residual
+  metric_direction: lower_is_better
+  normalization: average_tie_rank_mapped_to_0_1
+  fusion: equal_arithmetic_mean
+  tie_break: original_candidate_rank
+  success_labels_used: false
+  final_retained_per_contact_set: 1
+  skipped_unused_diagnostics:
+    - multi_friction_epsilon_and_convex_hull
+    - unweighted_qp
+    - eawq_composite
+    - full_hand_2mm_and_5mm_diagnostics
+  metric_parameters:
+    distal_and_palm:
+      friction_grid: [0.4, 0.6, 0.8]
+      contact_gap_sigma_m: 0.01
+      normal_confidence_factor: 0.25+0.75*c
+      qp_iterations: 80
+    full_hand:
+      contact_band_m: 0.01
+      spatial_suppression_m: 0.003
+      max_contact_regions: 8
+      friction_coefficient: 0.6
+      qp_iterations: 80
+
+ranking_validation:
+  rule_selection_status: frozen_after_exploratory_posthoc_analysis
+  rule_selection_data: existing_ood10_40960_particle_run
+  deployment_score_reads_success_labels: false
+  independent_confirmation_required: true
+  confirmation_trials: rerun_selected_1280_top1_on_same_gpu_physx_protocol
+  prohibit_reporting_offline_rerank_as_independent_result: true
+
+hands:
+  Barrett:
+    global_hand_index: 0
+    fk_config: configs/multigripper_fk_multidex_ood10_barrett_steps400_palm0_v4.yaml
+    fk_optimization:
+      palm_distance_weight: 0.0
+      palm_target_distance_m: 0.001
+      selection_max_palm_distance_m: 0.012
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+  shadow_hand:
+    global_hand_index: 1
+    fk_config: configs/multigripper_fk_multidex_ood10_shadow_dro_steps400_palm0_v4.yaml
+    fk_optimization:
+      palm_distance_weight: 0.0
+      palm_target_distance_m: 0.001
+      selection_max_palm_distance_m: 0.012
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+
+isaac_gym:
+  formal_backend: gpu_physx
+  smoke_backend: cpu_physx_compatibility_only
+  mix_backend_results: false
+  steps_per_second: 100
+  substeps: 2
+  closure_steps: 100
+  closure_trajectory: step
+  inner_hold_steps: 0
+  direction_seconds: 1.0
+  direction_order: cedex
+  success_mode: final
+  success_threshold_m: 0.02
+  acceleration_mps2: 0.5
+  robot_friction: 3.0
+  object_friction: 3.0
+  object_density_kg_m3: 500.0
+  joint_stiffness: 1000.0
+  joint_damping: 200.0
+  virtual_root_stiffness: 1000.0
+  virtual_root_damping: 200.0
+  solver_position_iterations: 8
+  solver_velocity_iterations: 0
+  contact_offset_m: 0.01
+  rest_offset_m: 0.0
+  gravity_enabled: false
+  ground_enabled: false
+
+execution:
+  analytic_candidates_per_object_hand: 2048
+  simulated_candidates_per_object_hand: 64
+  simulated_candidates_total_ood10: 1280
+  invalid_trial_counts_as_failure: true
+
+reporting:
+  primary_selection: eawq_rank_fusion_top1
+  ablation_selection: original_feasible_then_graspqp_rank0
+  success_definitions: [final, strict]
+
+decision_evidence:
+  scope: both_hands_palm_distance_weight
+  selected_weight: 0.0
+  selected_as: shared_simplified_energy_definition
+  unique_statistical_optimum_claimed: false
+  barrett_independent_palm0_confirmation_completed: false
+  barrett_selection_basis: shared_simplified_energy_definition
+  physx_weight_evidence_hand: shadow_hand
+  common_filler_protocol:
+    active_env_count: 512
+    envs_per_row: 23
+    target_slots: [0, 63]
+    filler_slots: [64, 511]
+    trials: 640
+  final_success:
+    weight_200: 289
+    weight_0: 327
+    absolute_delta_pp: 5.9375
+  report: reports/palm_distance_weight_lowrange_full_ood10_20260820/FINAL_REPORT_ZH.md
+  summary: reports/palm_distance_weight_lowrange_full_ood10_20260820/summary_padded512_common_fillers.json

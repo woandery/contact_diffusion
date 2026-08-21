@@ -1,0 +1,160 @@
+paths:
+  dataset_root: outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets
+  contact_format_root: outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets
+  # Generate FK in the same ShadowHand model used by D(R,O), instead of
+  # converting poses from the native dex-urdf hand after optimization.
+  gripper_root: outputs/shadow_dro_failure_visualizations/assets/robot
+  tip_offset_calibration: outputs/isaacsim_local_assets/tip_offsets.json
+  isaac_asset_cache: outputs/remote_4x4090/isaac_asset_cache
+  object_pc_root: outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_pcs
+  object_mesh_root: outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes
+
+baseline:
+  protocol_id: contactdiff-multidex45k-fk64x32x400-dro-gym-v1
+  base_seed: 20260808
+  contact_sets_per_object: 64
+  particles_per_contact_set: 32
+  optimization_steps: 400
+  retained_per_contact_set: 1
+
+diffusion:
+  run_dir: outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance
+  checkpoints:
+    - checkpoints/best_val.pt
+  sampler: ddim
+  num_steps: 50
+
+fk_optimization:
+  particles: 32
+  steps: 400
+  learning_rate: 0.005
+  contact_weight: 100.0
+  penetration_weight: 100.0
+  penetration_cvar_fraction: 0.10
+  penetration_cvar_weight: 1.0
+  object_normal_k_neighbors: 30
+  self_collision_weight: 100.0
+  self_collision_cvar_fraction: 0.25
+  self_collision_cvar_weight: 1.0
+  self_collision_clearance: 0.002
+  self_collision_points_per_link: 12
+  joint_regularization: 0.001
+  surface_points_per_link: 64
+  # v4: keep the distance diagnostic/gate, but remove it from FK gradients.
+  palm_distance_weight: 0.0
+  palm_target_distance_m: 0.001
+  selection_max_palm_distance_m: 0.012
+  graspqp_friction_coefficient: 0.8
+  graspqp_cone_edges: 8
+  graspqp_iterations: 80
+
+isaac:
+  headless: true
+  friction_coefficients: [3.0]
+  physics_dt: 0.01
+  close_seconds: 1.0
+  settle_seconds: 0.01
+  gravity_test_seconds: 3.0
+  downward_acceleration_mps2: 0.5
+  failure_displacement_m: 0.02
+  fk_close_tracking_error_threshold_rad: 0.20
+  overclose_fraction: 0.08
+  solver_position_iterations: 8
+  solver_velocity_iterations: 0
+  max_joint_effort: null
+
+grippers:
+  shadow_hand:
+    n: 5
+    ef_axis: -2
+    palm_link: palm
+    palm_surface_link: palm
+    urdf: shadowhand/shadow_hand_right.urdf
+    simulation_urdf: outputs/shadow_dro_failure_visualizations/assets/robot/shadowhand/shadow_hand_right_extended.urdf
+    model_source: DRO-Grasp/data/data_urdf/robot/shadowhand
+    merge_fixed_joints: true
+    tip_links: [ffdistal, mfdistal, rfdistal, lfdistal, thdistal]
+    tip_offsets:
+      ffdistal: [0.0, 0.0, 0.026]
+      mfdistal: [0.0, 0.0, 0.026]
+      rfdistal: [0.0, 0.0, 0.026]
+      lfdistal: [0.0, 0.0, 0.026]
+      thdistal: [0.0, 0.0, 0.0275]
+    base_alignment_matrix:
+      - [1.0, 0.0, 0.0, 0.0]
+      - [0.0, 1.0, 0.0, 0.0]
+      - [0.0, 0.0, 1.0, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+    locked_joints:
+      WRJ2: 0.0
+      WRJ1: 0.0
+    opened_dofs:
+      WRJ2: 0.0
+      WRJ1: 0.0
+      FFJ4: 0.0
+      FFJ3: 0.0
+      FFJ2: 0.0
+      FFJ1: 0.0
+      MFJ4: 0.0
+      MFJ3: 0.0
+      MFJ2: 0.0
+      MFJ1: 0.0
+      RFJ4: 0.0
+      RFJ3: 0.0
+      RFJ2: 0.0
+      RFJ1: 0.0
+      LFJ5: 0.0
+      LFJ4: 0.0
+      LFJ3: 0.0
+      LFJ2: 0.0
+      LFJ1: 0.0
+      THJ5: 0.0
+      THJ4: 0.0
+      THJ3: 0.0
+      THJ2: 0.0
+      THJ1: 0.0
+    close_dir:
+      WRJ2: 0.0
+      WRJ1: 0.0
+      FFJ4: 0.0
+      FFJ3: 1.0
+      FFJ2: 1.0
+      FFJ1: 1.0
+      MFJ4: 0.0
+      MFJ3: 1.0
+      MFJ2: 1.0
+      MFJ1: 1.0
+      RFJ4: 0.0
+      RFJ3: 1.0
+      RFJ2: 1.0
+      RFJ1: 1.0
+      LFJ5: 1.0
+      LFJ4: 0.0
+      LFJ3: 1.0
+      LFJ2: 1.0
+      LFJ1: 1.0
+      THJ5: 0.0
+      THJ4: 1.0
+      THJ3: 0.0
+      THJ2: 1.0
+      THJ1: 1.0
+    replay_open_joints:
+      - FFJ3
+      - FFJ2
+      - FFJ1
+      - MFJ3
+      - MFJ2
+      - MFJ1
+      - RFJ3
+      - RFJ2
+      - RFJ1
+      - LFJ3
+      - LFJ2
+      - LFJ1
+      - THJ4
+      - THJ2
+      - THJ1
+    closure_adapter:
+      name: contactdiff_fixed_direction_shadow_10_20
+      outer_fraction: 0.10
+      inner_fraction: 0.20

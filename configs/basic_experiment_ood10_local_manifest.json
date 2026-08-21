@@ -1,0 +1,15 @@
+{
+  "description": "Frozen local OOD-10 assets for the D(R,O)-aligned baseline protocol.",
+  "records": [
+    {"object_id": "contactdb_apple", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/contactdb_apple.obj", "object_pc_asset": "object_pcs/contactdb_apple.npy"},
+    {"object_id": "contactdb_camera", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/contactdb_camera.obj", "object_pc_asset": "object_pcs/contactdb_camera.npy"},
+    {"object_id": "contactdb_cylinder_medium", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/contactdb_cylinder_medium.obj", "object_pc_asset": "object_pcs/contactdb_cylinder_medium.npy"},
+    {"object_id": "contactdb_door_knob", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/contactdb_door_knob.obj", "object_pc_asset": "object_pcs/contactdb_door_knob.npy"},
+    {"object_id": "contactdb_rubber_duck", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/contactdb_rubber_duck.obj", "object_pc_asset": "object_pcs/contactdb_rubber_duck.npy"},
+    {"object_id": "contactdb_water_bottle", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/contactdb_water_bottle.obj", "object_pc_asset": "object_pcs/contactdb_water_bottle.npy"},
+    {"object_id": "ycb_055_baseball", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/ycb_055_baseball.obj", "object_pc_asset": "object_pcs/ycb_055_baseball.npy"},
+    {"object_id": "ycb_016_pear", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/ycb_016_pear.obj", "object_pc_asset": "object_pcs/ycb_016_pear.npy"},
+    {"object_id": "ycb_010_potted_meat_can", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/ycb_010_potted_meat_can.obj", "object_pc_asset": "object_pcs/ycb_010_potted_meat_can.npy"},
+    {"object_id": "ycb_005_tomato_soup_can", "object_mesh": "outputs/multidex_ood10_barrett_oldstack64x32_top1_steps400_aligned/provenance/assets/object_meshes/ycb_005_tomato_soup_can.obj", "object_pc_asset": "object_pcs/ycb_005_tomato_soup_can.npy"}
+  ]
+}

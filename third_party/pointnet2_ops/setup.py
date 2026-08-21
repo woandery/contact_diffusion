@@ -1,8 +1,20 @@
 import glob
+import os
 import os.path as osp
 
 from setuptools import find_packages, setup
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+import torch.utils.cpp_extension as cpp_extension
+
+
+if os.environ.get("CONTACTDIFF_ALLOW_CUDA_TOOLKIT_MISMATCH") == "1":
+    # Some managed GPU images expose only a newer system nvcc than the CUDA
+    # runtime bundled with PyTorch. PointNet++ contains plain CUDA kernels and
+    # no cuDNN/cuBLAS calls, so permit an explicitly requested local build and
+    # require a post-build import/forward smoke test before use.
+    cpp_extension._check_cuda_version = lambda *_args, **_kwargs: None
+
+BuildExtension = cpp_extension.BuildExtension
+CUDAExtension = cpp_extension.CUDAExtension
 
 this_dir = osp.dirname(osp.abspath(__file__))
 _ext_src_root = osp.join("pointnet2_ops", "_ext-src")

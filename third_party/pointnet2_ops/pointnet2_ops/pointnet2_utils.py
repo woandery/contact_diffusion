@@ -20,9 +20,12 @@ except ImportError:
     )
     _ext_headers = glob.glob(osp.join(_ext_src_root, "include", "*"))
 
-    # Keep JIT fallback builds compatible with the regular install scripts,
-    # while allowing callers to select a different GPU architecture.
-    os.environ.setdefault("TORCH_CUDA_ARCH_LIST", "8.6;12.0")
+    # Build for the GPU that is actually running this process. This keeps the
+    # JIT fallback portable when an environment moves between GPU generations
+    # (for example, H100 compute capability 9.0 and RTX 4090 capability 8.9).
+    if "TORCH_CUDA_ARCH_LIST" not in os.environ and torch.cuda.is_available():
+        major, minor = torch.cuda.get_device_capability()
+        os.environ["TORCH_CUDA_ARCH_LIST"] = f"{major}.{minor}"
     _ext = load(
         "_ext",
         sources=_ext_sources,

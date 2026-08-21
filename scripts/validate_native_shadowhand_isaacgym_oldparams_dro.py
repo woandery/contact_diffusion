@@ -24,7 +24,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from utils.basic_experiment_protocol import (
+    FILTERED50K_EAWQ_V3_PROTOCOL_ID,
     LEGACY_PROTOCOL_ID,
+    O10I20_V2_PROTOCOL_ID,
     PROTOCOL_ID,
     SUPPORTED_PROTOCOL_IDS,
     UNIFIED_CLOSURE_INNER_FRACTION,
@@ -145,7 +147,11 @@ def validate_frozen_basic_protocol(
             drift[name] = {"expected": wanted, "actual": actual}
     if drift:
         raise ValueError(f"Frozen basic protocol argument drift: {drift}")
-    if base_protocol_id == PROTOCOL_ID:
+    if base_protocol_id in {
+        O10I20_V2_PROTOCOL_ID,
+        FILTERED50K_EAWQ_V3_PROTOCOL_ID,
+        PROTOCOL_ID,
+    }:
         closure = prepared.get("closure_adapter", {})
         expected_closure = {
             "outer_fraction": UNIFIED_CLOSURE_OUTER_FRACTION,
@@ -245,6 +251,14 @@ def parse_args() -> argparse.Namespace:
         help="Zero-based offset into each prepared object's candidate list.",
     )
     parser.add_argument("--max-samples-per-object", type=int)
+    parser.add_argument(
+        "--envs-per-row",
+        type=int,
+        help=(
+            "Override the Isaac Gym environment grid width. By default it is "
+            "ceil(sqrt(active env count)). Intended for controlled layout audits."
+        ),
+    )
     parser.add_argument("--progress-every", type=int, default=16)
     parser.add_argument(
         "--viewer",
@@ -376,6 +390,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--direction-seconds", type=float, default=5.0 / 6.0)
     parser.add_argument("--direction-order", choices=("gendex", "cedex"), default="gendex")
+    parser.add_argument(
+        "--max-directions",
+        type=int,
+        help=(
+            "Run only this many leading disturbance directions for a short "
+            "physics prescreen. Omit for the formal six-direction evaluation."
+        ),
+    )
     parser.add_argument("--success-mode", choices=("final", "per_direction"), default="per_direction")
     parser.add_argument("--threshold", type=float, default=0.02)
     parser.add_argument("--acceleration", type=float, default=0.5)
@@ -991,7 +1013,13 @@ def validate_object(
 
         lower = gymapi.Vec3(-1.0, -1.0, -1.0)
         upper = gymapi.Vec3(1.0, 1.0, 1.0)
-        per_row = max(1, math.ceil(math.sqrt(count)))
+        per_row = (
+            int(args.envs_per_row)
+            if args.envs_per_row is not None
+            else max(1, math.ceil(math.sqrt(count)))
+        )
+        if per_row < 1:
+            raise ValueError("--envs-per-row must be positive")
         envs = []
         camera_handles = []
         object_actor_indices = []
@@ -1868,6 +1896,10 @@ def validate_object(
             if args.direction_order == "cedex"
             else DIRECTIONS_GENDEX
         )
+        if args.max_directions is not None:
+            if not 1 <= int(args.max_directions) <= len(directions):
+                raise ValueError("--max-directions must be within [1, 6]")
+            directions = directions[: int(args.max_directions)]
         direction_steps = max(
             1, round(args.steps_per_second * args.direction_seconds)
         )
@@ -2324,13 +2356,15 @@ def main() -> None:
             },
             "direction_seconds": args.direction_seconds,
             "direction_order": args.direction_order,
+            "max_directions": args.max_directions,
+            "partial_disturbance_prescreen": args.max_directions is not None,
             "directions": [
                 name
                 for name, _ in (
                     DIRECTIONS_CEDEX
                     if args.direction_order == "cedex"
                     else DIRECTIONS_GENDEX
-                )
+                )[: args.max_directions]
             ],
             "steps_per_direction": max(
                 1, round(args.steps_per_second * args.direction_seconds)
@@ -2340,6 +2374,11 @@ def main() -> None:
             "success_mode": args.success_mode,
             "success_threshold_m": args.threshold,
             "ground_enabled": not args.no_ground,
+            "environment_grid": {
+                "envs_per_row_override": args.envs_per_row,
+                "default": "ceil(sqrt(active env count))",
+                "purpose": "controlled PhysX batch-layout audit",
+            },
             "viewer_enabled": args.viewer,
             "viewer_show_diffusion_contacts": bool(
                 args.viewer and args.viewer_show_diffusion_contacts

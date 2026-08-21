@@ -1,0 +1,102 @@
+schema: contactdiff-contact-set-guidance-ab-v1
+protocol_id: contactdiff-contact-set-guidance-ab-all32-palm0-v4
+base_protocol_id: contactdiff-multidex-filtered50k-fk64x32x400-eawq-rankfusion-dro-gym-o10i20-palm0-v4
+purpose: >-
+  Diagnose whether learned sparse contact sets guide fixed-budget FK better
+  than label-free geometry-matched random surface sets. This is an all-particle
+  diagnostic extension of v4 and is not the v4 deployment Top-1 result.
+
+model_checkpoint:
+  family: multidex_filtered_barrett_shadow_balanced_n35
+  path: outputs/contact_diffusion_multidex_filtered_barrett_shadow_balanced_n35_4x4090/checkpoints/step_00050000.pt
+  step: 50000
+  sha256: 0934a15218f0f35cfd978d207e5c374556c0f8afbfb597e0489795d15ae97cc5
+
+generation:
+  contact_sets_per_object: 64
+  particles_per_contact_set: 32
+  optimization_steps: 400
+  retained_per_contact_set: 32
+
+contact_target_ab:
+  A:
+    name: diffusion
+    target: projected ContactDiffusion DDIM-50 contact set
+  B:
+    name: matched_random
+    target: random unique full-XYZ surface rows selected by surface-random-shape-matched-v1
+  matched_statistics:
+    - sorted pairwise contact distances / object bbox diagonal
+    - sorted object-centric radial distances / object bbox diagonal
+    - contact-centroid radius / object bbox diagonal
+  deliberately_not_matched:
+    - contact-centroid direction
+    - surface region identity
+    - FK or PhysX success labels
+  pairing:
+    source_diffusion_contacts: identical within each hand/object/sample pair
+    sample_seed: identical
+    fk_initialization: identical and derived from the paired diffusion set
+    optimized_target: only experimental variable
+  primary_metrics:
+    - invalid-inclusive all-particle final success
+    - invalid-inclusive all-particle strict success
+    - oracle@32 by contact set
+    - no-success-particle contact sets
+  secondary_metrics:
+    - rank-prefix success@1/2/4/8/16
+    - FK feasibility and penetration diagnostics
+
+fk_optimization:
+  learning_rate: 0.005
+  contact_weight: 100.0
+  penetration_weight: 100.0
+  self_collision_weight: 100.0
+  approach_weight: 2.0
+  joint_regularization: 0.001
+  palm_distance_weight: 0.0
+  force_closure_weight: 0.0
+  dfc_weight: 0.0
+  selection_max_palm_distance_m: 0.012
+
+hands:
+  Barrett:
+    global_hand_index: 0
+    fk_config: configs/multigripper_fk_multidex_ood10_barrett_steps400_palm0_v4.yaml
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+  shadow_hand:
+    global_hand_index: 1
+    fk_config: configs/multigripper_fk_multidex_ood10_shadow_dro_steps400_palm0_v4.yaml
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+
+isaac_gym:
+  backend: Isaac Gym Preview 4 GPU PhysX
+  active_env_count: 512
+  envs_per_row: 23
+  batches_per_object_hand_variant: 4
+  sample_order: sample_index-major then candidate-rank
+  steps_per_second: 100
+  substeps: 2
+  closure_steps: 100
+  direction_seconds: 1.0
+  direction_order: cedex
+  success_mode: final
+  success_threshold_m: 0.02
+  acceleration_mps2: 0.5
+  robot_friction: 3.0
+  object_friction: 3.0
+  object_density_kg_m3: 500.0
+  joint_stiffness: 1000.0
+  joint_damping: 200.0
+  invalid_trial_counts_as_failure: true
+
+statistics:
+  independent_unit: object x contact-set
+  paired_particle_key: hand x object x sample_index x original_particle_index
+  success_labels_used_during_generation: false
