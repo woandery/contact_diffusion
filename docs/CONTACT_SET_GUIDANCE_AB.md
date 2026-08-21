@@ -34,7 +34,7 @@ diffusion 输出、sample seed 和完全相同的32粒子 FK 初始状态，只�
 回答哪一组 contact 更有引导性。它可在主 A/B 完成后作为独立的 `no-contact-energy`
 机制消融。
 
-## 4×H100 运行
+## 2×/4×H100 运行
 
 在算力平台拉取代码、准备 checkpoint 和 Isaac Gym 环境后：
 
@@ -42,14 +42,15 @@ diffusion 输出、sample seed 和完全相同的32粒子 FK 初始状态，只�
 cd /path/to/ContactDiffusion
 export CONTACTDIFF_PYTHON=/path/to/contactdiff/python
 export CONTACTDIFF_ISAAC_RUNNER="$PWD/scripts/run_remote_isaacgym_python.sh"
-export CONTACTDIFF_GPU_IDS=0,1,2,3
+export CONTACTDIFF_GPU_IDS=0,1
 mkdir -p outputs/contact_set_guidance_ab_palm0_v4_h100
 nohup bash scripts/run_contact_set_guidance_ab_4h100.sh \
   > outputs/contact_set_guidance_ab_palm0_v4_h100/launcher.log 2>&1 &
 ```
 
-默认 generation 使用12个进程（每张 H100 三个）；若显存或主存压力过大，可在首次
-启动前设置 `CONTACTDIFF_GUIDANCE_AB_GENERATION_WORKERS=4`。重复执行同一命令会
+generation 默认每张 H100 使用三个进程；两卡为6个、四卡为12个。若显存或主存压力
+过大，可设置 `CONTACTDIFF_GUIDANCE_AB_GENERATION_WORKERS=2`。GPU PhysX 阶段始终
+每张卡一个 worker。重复执行同一命令会
 利用 candidate `--resume` 并跳过完整的512-trial PhysX batch。
 
 只从指定阶段恢复：

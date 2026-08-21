@@ -11,9 +11,14 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault("MPLCONFIGDIR", str(REPO_ROOT / ".cache" / "matplotlib"))
+cache_root = REPO_ROOT / ".cache"
+matplotlib_cache = cache_root / "matplotlib"
+torch_kernel_cache = cache_root / "torch" / "kernels"
+matplotlib_cache.mkdir(parents=True, exist_ok=True)
+torch_kernel_cache.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(matplotlib_cache))
 os.environ.setdefault(
-    "PYTORCH_KERNEL_CACHE_PATH", str(REPO_ROOT / ".cache" / "torch" / "kernels")
+    "PYTORCH_KERNEL_CACHE_PATH", str(torch_kernel_cache)
 )
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))

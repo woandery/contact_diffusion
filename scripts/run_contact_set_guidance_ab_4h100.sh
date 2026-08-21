@@ -12,18 +12,19 @@ protocol="${project_root}/configs/contact_set_guidance_ab_palm0_v4_protocol.yaml
 manifest="${project_root}/configs/basic_experiment_ood10_local_manifest.json"
 run_root="${CONTACTDIFF_GUIDANCE_AB_RUN_ROOT:-${project_root}/outputs/contact_set_guidance_ab_palm0_v4_h100}"
 start_stage="${CONTACTDIFF_GUIDANCE_AB_START_STAGE:-generate}"
-generation_workers="${CONTACTDIFF_GUIDANCE_AB_GENERATION_WORKERS:-12}"
 prepare_workers="${CONTACTDIFF_GUIDANCE_AB_PREPARE_WORKERS:-8}"
 matched_random_candidates="${CONTACTDIFF_GUIDANCE_AB_MATCH_CANDIDATES:-4096}"
 matched_random_seed_offset="${CONTACTDIFF_GUIDANCE_AB_MATCH_SEED_OFFSET:-7919}"
 seed="${CONTACTDIFF_GUIDANCE_AB_SEED:-20260808}"
 batch_size="${CONTACTDIFF_GUIDANCE_AB_GYM_BATCH_SIZE:-512}"
-gpu_id_csv="${CONTACTDIFF_GPU_IDS:-0,1,2,3}"
+gpu_id_csv="${CONTACTDIFF_GPU_IDS:-${CUDA_VISIBLE_DEVICES:-0,1}}"
 status_root="${run_root}/supervisor"
 
 IFS=',' read -r -a gpu_ids <<<"${gpu_id_csv}"
-if ((${#gpu_ids[@]} != 4)); then
-  printf 'CONTACTDIFF_GPU_IDS must contain exactly four comma-separated GPU IDs\n' >&2
+gpu_count="${#gpu_ids[@]}"
+generation_workers="${CONTACTDIFF_GUIDANCE_AB_GENERATION_WORKERS:-$((3 * gpu_count))}"
+if ((gpu_count < 1)); then
+  printf 'CONTACTDIFF_GPU_IDS must contain at least one GPU ID\n' >&2
   exit 2
 fi
 if ((batch_size != 512)); then
@@ -188,7 +189,7 @@ generate_one() {
 
 generation_worker() {
   local slot="$1" task_index task
-  local gpu="${gpu_ids[$((slot % 4))]}"
+  local gpu="${gpu_ids[$((slot % gpu_count))]}"
   for ((task_index=slot; task_index<${#generation_tasks[@]}; task_index+=generation_workers)); do
     task="${generation_tasks[task_index]}"
     parse_task "${task}"
@@ -311,7 +312,7 @@ gym_worker() {
   local gpu_slot="$1" task_index task
   local gpu="${gpu_ids[gpu_slot]}"
   printf 'running\n' >"${status_root}/gym_gpu${gpu_slot}.status"
-  for ((task_index=gpu_slot; task_index<${#tasks[@]}; task_index+=4)); do
+  for ((task_index=gpu_slot; task_index<${#tasks[@]}; task_index+=gpu_count)); do
     task="${tasks[task_index]}"
     parse_task "${task}"
     printf 'running %s %s %s\n' \
@@ -325,7 +326,7 @@ gym_worker() {
 if ((start_rank <= 2)); then
   printf 'validating_160_gpu_physx_batches\n' >"${status_root}/status"
   pids=()
-  for gpu_slot in 0 1 2 3; do
+  for ((gpu_slot=0; gpu_slot<gpu_count; gpu_slot++)); do
     gym_worker "${gpu_slot}" &
     pids+=("$!")
   done

@@ -133,3 +133,4 @@ def test_h100_runner_keeps_the_frozen_v4_budget_and_layout():
     assert "--candidate-mode all" in runner
     assert "--max-samples-per-object 512" in runner
     assert "--device-id 0 --envs-per-row 23" in runner
+    assert "task_index+=gpu_count" in runner
