@@ -16,12 +16,13 @@ The only changed FK term is the contact Chamfer weight:
 ```text
 contact_w000:   0
 contact_w025:  25
-contact_w100: 100  (frozen result from the completed guidance A/B run)
+contact_w100_4090: 100  (same-hardware paired reference)
 contact_w200: 200
 ```
 
-`matched_random_w100` from the same completed A/B run is included in the final
-report but is not part of the one-factor weight sweep.
+The completed diffusion-vs-matched-random A/B result remains a separate report.
+Its FK candidates were generated on H100, so it is not mixed into the byte-exact
+4090 initialization audit used by this one-factor weight sweep.
 
 `contact_w000` means **no contact-Chamfer energy**. It is not a fully
 contact-independent pipeline: diffusion contacts are deliberately retained for
@@ -29,10 +30,11 @@ the shared enveloping initialization and other frozen target-derived selection
 geometry. This isolates deletion of the Chamfer energy instead of changing both
 the initialization and objective at once.
 
-Frozen-contact arms replay and discard the source run's DDIM call before FK.
-This preserves the exact CUDA RNG position used by the original w100 arm; merely
-loading stored contacts would otherwise change the stochastic FK initial states
-despite using the same integer seed.
+All four weight arms are generated on the same 4090 platform. FK uses an explicit
+per-sample generator; the audit requires their initialization tensor hashes to
+match exactly. The earlier H100 w100 candidates cannot serve as this byte-exact
+reference because Kabsch/SVD floating-point results differ across GPU
+architectures even when seeds and contacts match.
 
 ## Metrics
 
@@ -60,9 +62,9 @@ nohup bash scripts/run_contact_energy_diagnostic_4gpu.sh \
   > outputs/contact_energy_guidance_diagnostic_palm0_v4_4x4090/launcher.log 2>&1 &
 ```
 
-The generation stage defaults to one worker per 24 GB GPU. PhysX uses one worker
-per GPU and produces 240 new batches (122,880 new trials). The completed w100 and
-matched-random results are reused without rerunning their 81,920 trials.
+The generation stage defaults to one worker per GPU. PhysX uses one worker per
+GPU and produces 320 batches (163,840 trials) for the four same-hardware weight
+arms. Existing complete arm files are resume-skipped.
 
 Final reports are written to:
 

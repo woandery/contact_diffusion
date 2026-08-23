@@ -701,6 +701,10 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if args.resume and output_path.is_file():
         previous = json.loads(output_path.read_text(encoding="utf-8"))
+        previous_contact_target = dict(previous.get("contact_target_ab", {}))
+        # Candidate files written before the RNG-replay diagnostic existed are
+        # semantically equivalent to an explicit false value.
+        previous_contact_target.setdefault("replay_source_diffusion_rng", False)
         if (
             previous.get("checkpoint") != output["checkpoint"]
             or previous.get("checkpoint_sha256")
@@ -708,7 +712,7 @@ def main() -> None:
             or previous.get("config_sha256") != output["config_sha256"]
             or previous.get("selection") != output["selection"]
             or previous.get("fk_energy") != output["fk_energy"]
-            or previous.get("contact_target_ab") != output["contact_target_ab"]
+            or previous_contact_target != output["contact_target_ab"]
         ):
             raise ValueError(
                 f"Cannot resume {output_path}: run configuration differs"

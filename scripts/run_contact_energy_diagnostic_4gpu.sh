@@ -59,10 +59,11 @@ objects=(
   ycb_010_potted_meat_can
   ycb_005_tomato_soup_can
 )
-new_variants=(contact_w000 contact_w025 contact_w200)
+new_variants=(contact_w000 contact_w025 contact_w100_4090 contact_w200)
 declare -A contact_weights=(
   [contact_w000]=0
   [contact_w025]=25
+  [contact_w100_4090]=100
   [contact_w200]=200
 )
 tasks=()
@@ -180,7 +181,6 @@ generate_one() {
     --contact-weight "${contact_weights[${variant}]}" \
     --initialization-contact-source diffusion \
     --source-diffusion-candidates "${source_candidates}" \
-    --replay-source-diffusion-rng \
     --device cuda:0 --seed "${seed}" \
     --hand-index-offset "${resolved_hand_index}" \
     --object-index-offset "${object_index}" --resume --output "${output}" \
@@ -201,14 +201,13 @@ generation_worker() {
 summary_arm_args=(
   --arm "contact_w000=${run_root}/contact_w000"
   --arm "contact_w025=${run_root}/contact_w025"
-  --arm "contact_w100=${source_run_root}/diffusion"
+  --arm "contact_w100_4090=${run_root}/contact_w100_4090"
   --arm "contact_w200=${run_root}/contact_w200"
-  --arm "matched_random_w100=${source_run_root}/matched_random"
-  --reference-arm contact_w100
+  --reference-arm contact_w100_4090
 )
 
 if ((start_rank <= 0)); then
-  printf 'generating_60_contact_energy_object_hand_jobs\n' >"${status_root}/status"
+  printf 'generating_80_contact_energy_object_hand_jobs\n' >"${status_root}/status"
   pids=()
   for ((slot=0; slot<generation_workers; slot++)); do
     generation_worker "${slot}" &
@@ -252,7 +251,7 @@ preparation_worker() {
 }
 
 if ((start_rank <= 1)); then
-  printf 'preparing_60_all_particle_manifests\n' >"${status_root}/status"
+  printf 'preparing_80_all_particle_manifests\n' >"${status_root}/status"
   pids=()
   for ((slot=0; slot<prepare_workers; slot++)); do
     preparation_worker "${slot}" &
@@ -327,7 +326,7 @@ gym_worker() {
 }
 
 if ((start_rank <= 2)); then
-  printf 'validating_240_gpu_physx_batches\n' >"${status_root}/status"
+  printf 'validating_320_gpu_physx_batches\n' >"${status_root}/status"
   pids=()
   for ((gpu_slot=0; gpu_slot<gpu_count; gpu_slot++)); do
     gym_worker "${gpu_slot}" &
