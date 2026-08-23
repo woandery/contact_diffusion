@@ -29,6 +29,11 @@ the shared enveloping initialization and other frozen target-derived selection
 geometry. This isolates deletion of the Chamfer energy instead of changing both
 the initialization and objective at once.
 
+Frozen-contact arms replay and discard the source run's DDIM call before FK.
+This preserves the exact CUDA RNG position used by the original w100 arm; merely
+loading stored contacts would otherwise change the stochastic FK initial states
+despite using the same integer seed.
+
 ## Metrics
 
 - invalid-inclusive final/strict all-particle success;

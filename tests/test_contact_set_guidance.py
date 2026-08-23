@@ -205,6 +205,7 @@ def test_contact_energy_runner_freezes_contacts_and_sweeps_one_fk_term():
     )
     assert "new_variants=(contact_w000 contact_w025 contact_w200)" in runner
     assert "--source-diffusion-candidates" in runner
+    assert "--replay-source-diffusion-rng" in runner
     assert "--initialization-contact-source diffusion" in runner
     assert '--contact-weight "${contact_weights[${variant}]}"' in runner
     assert "validating_240_gpu_physx_batches" in runner

@@ -147,6 +147,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--replay-source-diffusion-rng",
+        action="store_true",
+        help=(
+            "When frozen contacts come from --source-diffusion-candidates, run "
+            "and discard the corresponding diffusion sample first. This "
+            "reproduces the source run's CUDA RNG position before FK "
+            "initialization, allowing exact paired initial states."
+        ),
+    )
+    parser.add_argument(
         "--matched-random-candidates",
         type=int,
         default=4096,
@@ -628,6 +638,9 @@ def main() -> None:
             "matched_random_seed_offset": int(
                 args.matched_random_seed_offset
             ),
+            "replay_source_diffusion_rng": bool(
+                args.replay_source_diffusion_rng
+            ),
             "comparison_scope": (
                 "fixed-diffusion-initialization_target-only"
                 if args.initialization_contact_source == "diffusion"
@@ -643,10 +656,24 @@ def main() -> None:
         source_payload = json.loads(source_path.read_text(encoding="utf-8"))
         if source_payload.get("contact_target_ab", {}).get("mode") != "diffusion":
             raise ValueError("paired source candidate file is not the diffusion arm")
-        for field in ("checkpoint_sha256", "config_sha256", "selection"):
+        for field in ("checkpoint_sha256", "config_sha256"):
             if source_payload.get(field) != output.get(field):
                 raise ValueError(
                     f"paired source candidate {field} does not match this run"
+                )
+        source_selection = source_payload.get("selection", {})
+        for field in (
+            "object_ids",
+            "grippers",
+            "base_seed",
+            "hand_index_offset",
+            "object_index_offset",
+            "seed_formula",
+        ):
+            if source_selection.get(field) != output["selection"].get(field):
+                raise ValueError(
+                    f"paired source candidate selection.{field} does not match "
+                    "this run"
                 )
         source_diffusion_records = {
             (
@@ -665,6 +692,11 @@ def main() -> None:
     else:
         output["contact_target_ab"]["source_diffusion_candidates"] = None
         output["contact_target_ab"]["source_diffusion_candidates_sha256"] = None
+    if args.replay_source_diffusion_rng and source_diffusion_records is None:
+        raise ValueError(
+            "--replay-source-diffusion-rng requires "
+            "--source-diffusion-candidates"
+        )
     output_path = resolve(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if args.resume and output_path.is_file():
@@ -791,6 +823,21 @@ def main() -> None:
                             project_to_surface=True,
                         )[0]
                 else:
+                    if args.replay_source_diffusion_rng:
+                        # The paired source run sampled contacts immediately
+                        # after setting sample_seed. Replaying that call keeps
+                        # the subsequent stochastic FK initialization at the
+                        # exact same CUDA RNG position while the stored source
+                        # contacts remain the actual optimization target.
+                        with torch.inference_mode():
+                            model.sample(
+                                object_pc=model_object_pc.unsqueeze(0),
+                                num_contacts=int(spec["n"]),
+                                dc=3,
+                                num_steps=diffusion_steps,
+                                sampler=str(config["diffusion"]["sampler"]),
+                                project_to_surface=True,
+                            )
                     source_record = source_diffusion_records.get(record_key)
                     if source_record is None:
                         raise ValueError(

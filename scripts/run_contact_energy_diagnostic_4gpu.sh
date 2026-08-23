@@ -180,6 +180,7 @@ generate_one() {
     --contact-weight "${contact_weights[${variant}]}" \
     --initialization-contact-source diffusion \
     --source-diffusion-candidates "${source_candidates}" \
+    --replay-source-diffusion-rng \
     --device cuda:0 --seed "${seed}" \
     --hand-index-offset "${resolved_hand_index}" \
     --object-index-offset "${object_index}" --resume --output "${output}" \
