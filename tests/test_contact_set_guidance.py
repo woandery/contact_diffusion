@@ -4,6 +4,11 @@ import numpy as np
 import yaml
 
 from scripts.summarize_contact_set_guidance_ab import aggregate, exact_mcnemar_p
+from scripts.summarize_contact_energy_diagnostic import (
+    Arm,
+    aggregate as aggregate_energy_arm,
+    compare as compare_energy_arms,
+)
 from utils.basic_experiment_protocol import PROTOCOL_ID
 from utils.contact_set_guidance import (
     MATCHER_VERSION,
@@ -134,3 +139,72 @@ def test_h100_runner_keeps_the_frozen_v4_budget_and_layout():
     assert "--max-samples-per-object 512" in runner
     assert "--device-id 0 --envs-per-row 23" in runner
     assert "task_index+=gpu_count" in runner
+
+
+def _synthetic_energy_arm(name: str, successes: set[tuple[int, int]]) -> Arm:
+    candidates = {}
+    outcomes = {}
+    metadata = {}
+    for sample in range(2):
+        set_key = ("barrett", "apple", sample)
+        metadata[set_key] = {
+            "sample_seed": sample,
+            "source_diffusion_contacts_sha256": f"source-{sample}",
+            "target_contacts_sha256": f"source-{sample}",
+            "initialization_state_sha256": f"initial-{sample}",
+            "particle_indices": (0, 1),
+        }
+        for particle in range(2):
+            key = (*set_key, particle)
+            candidates[key] = {
+                "rank": particle,
+                "contact_chamfer_m": 0.001 * (particle + 1),
+                "assigned_contact_error_m": 0.002 * (particle + 1),
+            }
+            success = (sample, particle) in successes
+            outcomes[key] = {
+                "rank": particle,
+                "final": success,
+                "strict": success,
+                "valid": True,
+            }
+    return Arm(
+        name=name,
+        root=ROOT,
+        contact_weight=100.0,
+        target_mode="diffusion",
+        metadata=metadata,
+        candidates=candidates,
+        outcomes=outcomes,
+    )
+
+
+def test_contact_energy_summary_reports_multik_and_paired_delta():
+    reference = _synthetic_energy_arm("w100", {(0, 0)})
+    improved = _synthetic_energy_arm("w200", {(0, 0), (1, 1)})
+    keys = sorted(reference.outcomes)
+
+    aggregate_report = aggregate_energy_arm(improved, keys)
+    assert aggregate_report["final"]["particle_success_rate"] == 0.5
+    assert aggregate_report["final"]["success_at_k"]["1"]["sets"] == 1
+    assert aggregate_report["final"]["success_at_k"]["2"]["sets"] == 2
+    assert aggregate_report["fk_contact_attainment"]["contact_chamfer_m"][
+        "median"
+    ] == 0.0015
+
+    paired = compare_energy_arms(
+        improved, reference, keys, seed=7, draws=20
+    )["final"]
+    assert paired["particle_delta_pp"] == 25.0
+    assert paired["success_at_k"]["2"]["delta_pp"] == 50.0
+
+
+def test_contact_energy_runner_freezes_contacts_and_sweeps_one_fk_term():
+    runner = (ROOT / "scripts/run_contact_energy_diagnostic_4gpu.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "new_variants=(contact_w000 contact_w025 contact_w200)" in runner
+    assert "--source-diffusion-candidates" in runner
+    assert "--initialization-contact-source diffusion" in runner
+    assert '--contact-weight "${contact_weights[${variant}]}"' in runner
+    assert "validating_240_gpu_physx_batches" in runner

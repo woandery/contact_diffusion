@@ -118,6 +118,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--contact-weight",
+        type=float,
+        default=None,
+        help=(
+            "Optional override for fk_optimization.contact_weight. This is "
+            "intended for paired contact-energy ablations that keep the "
+            "checkpoint, contacts, initialization, and all other FK terms fixed."
+        ),
+    )
+    parser.add_argument(
         "--initialization-contact-source",
         choices=("target", "diffusion"),
         default="target",
@@ -132,7 +142,8 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help=(
             "Optional diffusion-variant candidate JSON supplying the exact "
-            "paired source contacts. Intended for matched_random B runs."
+            "paired source contacts. This can also freeze diffusion contacts "
+            "across FK contact-weight ablations."
         ),
     )
     parser.add_argument(
@@ -437,7 +448,13 @@ def main() -> None:
             "--cedex-cleanup-steps must be 0 for the six-term XYZ-only energy"
         )
     diffusion_steps = int(args.diffusion_steps or config["diffusion"]["num_steps"])
-    contact_weight = float(config["fk_optimization"].get("contact_weight", 1.0))
+    contact_weight = float(
+        config["fk_optimization"].get("contact_weight", 1.0)
+        if args.contact_weight is None
+        else args.contact_weight
+    )
+    if contact_weight < 0.0:
+        raise ValueError("--contact-weight must be non-negative")
     penetration_weight = float(
         config["fk_optimization"].get("penetration_weight", 0.0)
     )
@@ -622,11 +639,6 @@ def main() -> None:
     }
     source_diffusion_records = None
     if args.source_diffusion_candidates is not None:
-        if args.contact_target_mode != "matched_random":
-            raise ValueError(
-                "--source-diffusion-candidates is only valid with "
-                "--contact-target-mode matched_random"
-            )
         source_path = resolve(args.source_diffusion_candidates)
         source_payload = json.loads(source_path.read_text(encoding="utf-8"))
         if source_payload.get("contact_target_ab", {}).get("mode") != "diffusion":
