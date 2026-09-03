@@ -85,6 +85,7 @@ hands:
     global_hand_index: 0
     fk_config: configs/multigripper_fk_multidex_ood10_barrett_steps400_palm0_v4.yaml
     fk_optimization:
+      cedex_palm_axis: [0.0, 0.0, 1.0]
       palm_distance_weight: 0.0
       palm_target_distance_m: 0.001
       selection_max_palm_distance_m: 0.012
@@ -96,6 +97,7 @@ hands:
     global_hand_index: 1
     fk_config: configs/multigripper_fk_multidex_ood10_shadow_dro_steps400_palm0_v4.yaml
     fk_optimization:
+      cedex_palm_axis: [1.0, 0.0, 0.0]
       palm_distance_weight: 0.0
       palm_target_distance_m: 0.001
       selection_max_palm_distance_m: 0.012

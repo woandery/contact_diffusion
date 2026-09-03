@@ -1,0 +1,99 @@
+base_config: contact_ar_multidex_full_proportional_traj_vpred_600k_8xh100.yaml
+
+dataset:
+  type: contact_format
+  root_dir: /inspire/qb-ilm2/project/zhanghanbo/public/graspdata_end
+  dataset_dirs:
+    - contact_format/v0/multidex/by_hand/*
+  n_values: [2, 3, 5]
+  num_points: 1024
+  full_geometry_num_points: 2048
+  dc: 3
+  contact_field: contact_points
+  native_n_filter: true
+  allowed_grippers: [ezgripper, barrett, shadowhand]
+  allowed_object_ids_file: configs/gendex_seen48_objects.json
+  allowed_object_ids_key: train
+  source_index_allowlist_file: outputs/contact_ar_success_k128_mixedpartial_gb768_8x4090/k128_success_allowlist.json.gz
+  success_only: false
+  load_cmap: false
+  load_qpos: false
+  condition_on_cmap: false
+  normalize: false
+  split_names: [train]
+  split_fractions: [1.0]
+  split_max_samples: {}
+  index_cache_dir: .cache/contactdiffusion/multidex_success_k128_n235_seen48
+  shard_cache_size: 8
+
+  # MultiDex has no calibrated depth partial assets.  Generate a new random
+  # view-facing 50% crop on every visit and mix it 1:1 with the full cloud.
+  object_observation_mode: mixed_full_synthetic_partial
+  partial_probability: 0.5
+  synthetic_partial_keep_ratio: 0.5
+  append_observation_type_feature: true
+
+model:
+  dc: 3
+  object_input_dim: 4
+  d_model: 256
+  num_layers: 6
+  num_heads: 8
+  ffn_dim: 1024
+  dropout: 0.0
+  activation: GELU
+  use_n_embedding: true
+  use_object_cross_attention: true
+  object_encoder_type: pointnet
+  pointnet_local_npoints: [256, 128, 64]
+  pointnet_local_radii: [0.02, 0.04, 0.08]
+  pointnet_local_nsamples: [64, 128, 64]
+  max_contacts: 6
+
+loss:
+  lambda_noise: 1.0
+  lambda_xyz_mm: 0.10
+  lambda_relative_mm: 0.05
+  lambda_set_mm: 0.05
+  # GT matching remains valid for partial input; partial-surface supervision is not.
+  lambda_surface_mm: 0.0
+  geometry_max_timestep: 200
+  huber_delta_mm: 2.0
+
+train:
+  output_dir: outputs/contact_ar_success_k128_mixedpartial_gb768_8x4090/model
+  batch_size: 96
+  gradient_accumulation_steps: 1
+  distributed_min_samples_per_rank: 0
+  num_workers: 8
+  max_steps: 16000
+  lr: 0.0008
+  lr_scheduler: cosine
+  min_lr_ratio: 0.2
+  weight_decay: 0.0
+  grad_clip_norm: 1.0
+  allow_tf32: true
+  log_every: 50
+  val_every: 2000
+  val_batches_per_n: 2
+  validation_timestep: 100
+  validation_split: train
+  save_every: 2000
+  seed: 20260901
+  n_sampling: round_robin
+  symmetric_all_first: true
+  trajectory_training: true
+  low_t_sampling_probability: 0.90
+  low_t_sampling_max: 200
+  rollout_generated_probability_max: 0.0
+  prefix_noise_std: 0.0
+  prefix_noise_max_timestep: 0
+  warmstart_model: outputs/contact_ar_k32_gb768_8x96_lr8e4_20260901/model/checkpoints/step_00004000.pt
+  resume: null
+
+sampling:
+  n_values: [2, 3, 5]
+  num_steps: 50
+  sampler: ddim
+  project_to_surface: false
+  stabilization_timestep: 0

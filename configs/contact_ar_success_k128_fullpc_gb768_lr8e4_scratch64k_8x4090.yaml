@@ -1,0 +1,13 @@
+base_config: contact_ar_success_k128_mixedpartial_gb768_lr8e4_scratch64k_8x4090.yaml
+
+dataset:
+  # Full-cloud control: keep the K=128 data, model, optimizer, batch size,
+  # schedule, seed, and losses identical to the mixed-observation run.
+  object_observation_mode: full
+  partial_probability: 0.0
+  # Preserve every point in the native 2048-point object observation.
+  num_points: 2048
+  full_geometry_num_points: 2048
+
+train:
+  output_dir: outputs/contact_ar_success_k128_fullpc_gb768_lr8e4_scratch64k_8x4090/model

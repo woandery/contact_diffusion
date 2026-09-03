@@ -1,0 +1,16 @@
+base_config: contact_ar_success_k128_mixedpartial_gb768_16k_8x4090.yaml
+
+train:
+  output_dir: outputs/contact_ar_success_k128_mixedpartial_gb768_lr8e4_scratch64k_8x4090/model
+  batch_size: 96
+  gradient_accumulation_steps: 1
+  max_steps: 64000
+  lr: 0.0008
+  lr_scheduler: cosine
+  min_lr_ratio: 0.2
+  val_every: 8000
+  save_every: 8000
+  seed: 20260902
+  # True from-scratch run: do not load any general or previous K=128 model.
+  warmstart_model: null
+  resume: null

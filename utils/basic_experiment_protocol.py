@@ -21,6 +21,14 @@ PROTOCOL_ID = (
     "contactdiff-multidex-filtered50k-fk64x32x400-"
     "eawq-rankfusion-dro-gym-o10i20-palm0-v4"
 )
+PARTIAL_AR64K_V5_PROTOCOL_ID = (
+    "contactdiff-partial-ar-k128-step64k-fk32x32x400-"
+    "eawq-rankfusion-dro-gym-o10i20-palm0-v5"
+)
+MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID = (
+    "contactdiff-mixed-full-partial-ar-k128-step56k-fk32x32x400-"
+    "eawq-rankfusion-dro-gym-o10i20-palm0-v6"
+)
 ALL_PARTICLE_PROTOCOL_ID = (
     "contactdiff-multidex45k-fk64x32x400-all32-dro-gym-o10i20-v1"
 )
@@ -33,6 +41,8 @@ SUPPORTED_PROTOCOL_IDS = frozenset(
         O10I20_V2_PROTOCOL_ID,
         FILTERED50K_EAWQ_V3_PROTOCOL_ID,
         PROTOCOL_ID,
+        PARTIAL_AR64K_V5_PROTOCOL_ID,
+        MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
     )
 )
 UNIFIED_CLOSURE_OUTER_FRACTION = 0.10

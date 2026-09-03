@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build prepared manifests containing EAWQ rank-fusion top1 per contact set."""
+"""Build prepared manifests containing EAWQ rank-fusion Top-K per contact set."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
+import yaml
 from scipy.stats import rankdata
 
 
@@ -38,10 +39,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--particle-metrics", type=Path, required=True)
     parser.add_argument("--prepared-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument(
+        "--execution-protocol",
+        type=Path,
+        help="Freeze and validate the authoritative EAWQ protocol provenance.",
+    )
     parser.add_argument("--expected-hands", type=int, default=2)
     parser.add_argument("--expected-objects-per-hand", type=int, default=10)
     parser.add_argument("--expected-sets-per-object", type=int, default=64)
     parser.add_argument("--expected-particles-per-set", type=int, default=32)
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=1,
+        help="Retain this EAWQ-ordered prefix for success@K evaluation.",
+    )
     return parser.parse_args()
 
 
@@ -76,7 +88,7 @@ def load_metric_rows(path: Path) -> list[dict]:
     return rows
 
 
-def select_top1(rows: list[dict], expected_particles: int) -> dict:
+def rank_candidates(rows: list[dict], expected_particles: int) -> list[dict]:
     if len(rows) != expected_particles:
         raise ValueError(
             f"contact set contains {len(rows)} particles, expected {expected_particles}"
@@ -100,7 +112,7 @@ def select_top1(rows: list[dict], expected_particles: int) -> dict:
                 + row[f"rank_{FULL_HAND_METRIC}"]
             )
         )
-    return min(
+    ordered = sorted(
         rows,
         key=lambda row: (
             -int(row["selection_feasible"]),
@@ -108,13 +120,49 @@ def select_top1(rows: list[dict], expected_particles: int) -> dict:
             row["candidate_rank"],
         ),
     )
+    for selection_rank, row in enumerate(ordered):
+        row["eawq_selection_rank"] = selection_rank
+    return ordered
+
+
+def select_top1(rows: list[dict], expected_particles: int) -> dict:
+    """Backward-compatible helper retained for existing tests/callers."""
+    return rank_candidates(rows, expected_particles)[0]
 
 
 def main() -> None:
     args = parse_args()
+    if not 1 <= args.top_k <= args.expected_particles_per_set:
+        raise ValueError("top-k must be within [1, expected particles per set]")
     metrics_path = args.particle_metrics.resolve()
     prepared_root = args.prepared_root.resolve()
     output_root = args.output_root.resolve()
+    protocol_path = (
+        args.execution_protocol.resolve()
+        if args.execution_protocol is not None
+        else None
+    )
+    protocol = (
+        yaml.safe_load(protocol_path.read_text(encoding="utf-8"))
+        if protocol_path is not None
+        else None
+    )
+    if protocol is not None:
+        ranking = protocol.get("ranking", {})
+        expected = {
+            "name": FUSION_NAME,
+            "distal_metric": DISTAL_METRIC,
+            "full_hand_metric": FULL_HAND_METRIC,
+            "success_labels_used": False,
+            "final_retained_per_contact_set": 1,
+        }
+        drift = {
+            key: {"expected": value, "actual": ranking.get(key)}
+            for key, value in expected.items()
+            if ranking.get(key) != value
+        }
+        if drift:
+            raise ValueError(f"EAWQ execution protocol drift: {drift}")
     rows = load_metric_rows(metrics_path)
 
     grouped: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
@@ -138,14 +186,17 @@ def main() -> None:
 
     selected = []
     for key in sorted(grouped):
-        selected.append(
-            select_top1(grouped[key], args.expected_particles_per_set).copy()
+        selected.extend(
+            row.copy()
+            for row in rank_candidates(
+                grouped[key], args.expected_particles_per_set
+            )[: args.top_k]
         )
     selected_by_object: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for row in selected:
         selected_by_object[(row["hand"], row["object_name"])].append(row)
     for key, object_rows in selected_by_object.items():
-        if len(object_rows) != args.expected_sets_per_object:
+        if len(object_rows) != args.expected_sets_per_object * args.top_k:
             raise ValueError(
                 f"{key} has {len(object_rows)} contact sets, "
                 f"expected {args.expected_sets_per_object}"
@@ -172,11 +223,18 @@ def main() -> None:
             for sample in source_group["samples"]
         }
         selected_samples = []
-        for row in sorted(object_rows, key=lambda item: item["source_index"]):
+        for row in sorted(
+            object_rows,
+            key=lambda item: (item["source_index"], item["eawq_selection_rank"]),
+        ):
             sample_key = (row["source_index"], row["candidate_rank"])
             if sample_key not in samples:
                 raise ValueError(f"selected sample missing from {input_path}: {sample_key}")
             sample = deepcopy(samples[sample_key])
+            source_candidate_rank = int(sample["candidate_rank"])
+            if args.top_k > 1:
+                sample["source_candidate_rank"] = source_candidate_rank
+                sample["candidate_rank"] = int(row["eawq_selection_rank"])
             sample["eawq_rank_fusion"] = {
                 "name": FUSION_NAME,
                 "distal_metric": DISTAL_METRIC,
@@ -186,6 +244,8 @@ def main() -> None:
                 "equal_weight_fusion_score": row[FUSION_NAME],
                 "feasibility_gate": True,
                 "selected_feasible": row["selection_feasible"],
+                "selection_rank": int(row["eawq_selection_rank"]),
+                "source_candidate_rank": source_candidate_rank,
             }
             selected_samples.append(sample)
             prepared_manifest_rows.append(
@@ -198,12 +258,21 @@ def main() -> None:
             )
 
         output_payload = deepcopy(payload)
-        output_payload["method"] = "step50k_eawq_rank_fusion_top1"
+        checkpoint_step = int(
+            (protocol or {}).get("model_checkpoint", {}).get(
+                "step", payload.get("checkpoint_step", 50000)
+            )
+        )
+        output_payload["method"] = (
+            f"step{checkpoint_step}_eawq_rank_fusion_top{args.top_k}"
+        )
         output_payload["parent_prepared"] = str(input_path)
         output_payload["parent_prepared_sha256"] = sha256(input_path)
-        output_payload["contact_sets_per_object"] = len(selected_samples)
+        output_payload["contact_sets_per_object"] = int(
+            args.expected_sets_per_object
+        )
         output_payload["particles_per_set"] = args.expected_particles_per_set
-        output_payload["retained_per_set"] = 1
+        output_payload["retained_per_set"] = int(args.top_k)
         output_payload["ranking"] = {
             "name": FUSION_NAME,
             "scope": "within each contact set",
@@ -215,7 +284,22 @@ def main() -> None:
             "success_labels_used": False,
             "particle_metrics": str(metrics_path),
             "particle_metrics_sha256": sha256(metrics_path),
+            "execution_protocol": (
+                str(protocol_path) if protocol_path is not None else None
+            ),
+            "execution_protocol_sha256": (
+                sha256(protocol_path) if protocol_path is not None else None
+            ),
         }
+        if protocol is not None:
+            output_payload["protocol_id"] = protocol["protocol_id"]
+            output_payload["base_protocol_id"] = protocol.get(
+                "base_protocol_id", protocol["protocol_id"]
+            )
+            output_payload["execution_protocol_config"] = str(protocol_path)
+            output_payload["execution_protocol_config_sha256"] = sha256(
+                protocol_path
+            )
         output_payload["objects"] = [
             {
                 **deepcopy(source_group),
@@ -231,7 +315,7 @@ def main() -> None:
 
     selection_dir = output_root / "selection"
     selection_dir.mkdir(parents=True, exist_ok=True)
-    selection_csv = selection_dir / "eawq_rank_fusion_top1.csv"
+    selection_csv = selection_dir / f"eawq_rank_fusion_top{args.top_k}.csv"
     csv_fields = [
         "hand",
         "object_name",
@@ -245,6 +329,7 @@ def main() -> None:
         f"rank_{DISTAL_METRIC}",
         f"rank_{FULL_HAND_METRIC}",
         FUSION_NAME,
+        "eawq_selection_rank",
         "prepared_input",
     ]
     with selection_csv.open("w", encoding="utf-8", newline="") as stream:
@@ -253,7 +338,7 @@ def main() -> None:
         writer.writerows(prepared_manifest_rows)
 
     manifest = {
-        "schema": "contactdiff-eawq-rank-fusion-top1-v1",
+        "schema": "contactdiff-eawq-rank-fusion-topk-v1",
         "particle_metrics": str(metrics_path),
         "particle_metrics_sha256": sha256(metrics_path),
         "prepared_root": str(prepared_root),
@@ -265,12 +350,20 @@ def main() -> None:
             "success_labels_used": False,
             "feasibility_gate": True,
         },
+        "execution_protocol": (
+            str(protocol_path) if protocol_path is not None else None
+        ),
+        "execution_protocol_sha256": (
+            sha256(protocol_path) if protocol_path is not None else None
+        ),
         "hands": hands,
         "objects_per_hand": args.expected_objects_per_hand,
         "sets_per_object": args.expected_sets_per_object,
         "particles_per_set": args.expected_particles_per_set,
         "input_particles": len(rows),
-        "selected_top1": len(selected),
+        "top_k": int(args.top_k),
+        "selected_candidates": len(selected),
+        "selected_top1": len(grouped),
         "selected_feasible": sum(row["selection_feasible"] for row in selected),
         "selected_infeasible_fallback": sum(
             not row["selection_feasible"] for row in selected

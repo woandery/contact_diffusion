@@ -1,0 +1,113 @@
+dataset:
+  type: contact_format
+  root_dir: /inspire/qb-ilm2/project/zhanghanbo/public/graspdata_end
+  dataset_dirs:
+    - contact_format/v0/multidex/by_hand/*
+  n_values: [3, 5]
+  num_points: 2048
+  dc: 3
+  contact_field: contact_points
+  object_pc_asset_keys: [object_pc_asset, object_point_cloud_asset, pc_asset, asset_object_pc]
+  native_n_filter: true
+  allowed_grippers: [barrett, shadowhand]
+  allowed_object_ids_file: configs/gendex_seen48_objects.json
+  allowed_object_ids_key: train
+  source_index_allowlist_file: configs/multidex_filtered_seen48_barrett_shadow_success_indices.json.gz
+  success_only: false
+  max_projection_distance: null
+  load_cmap: false
+  load_qpos: false
+  condition_on_cmap: false
+  normalize: true
+  split_names: [train, val, test]
+  split_fractions: [0.98, 0.01, 0.01]
+  max_samples: null
+  split_max_samples:
+    val: 4096
+    test: 4096
+  index_cache_dir: .cache/contactdiffusion/multidex_filtered_seen48_barrett_shadow_n35
+  shard_cache_size: 8
+
+model:
+  dc: 3
+  object_input_dim: 3
+  d_model: 256
+  num_layers: 6
+  num_heads: 8
+  ffn_dim: 1024
+  dropout: 0.0
+  activation: GELU
+  use_n_embedding: true
+  use_object_cross_attention: true
+  object_encoder_type: pointnet
+  pointnet_local_npoints: [256, 128, 64]
+  pointnet_local_radii: [0.2, 0.4, 0.8]
+  pointnet_local_nsamples: [64, 128, 64]
+  max_contacts: 6
+
+diffusion:
+  num_timesteps: 1000
+  beta_start: 0.0001
+  beta_end: 0.02
+  beta_schedule: squaredcos_cap_v2
+  clip_sample: true
+  prediction_type: v_prediction
+
+loss:
+  lambda_noise: 1.0
+  lambda_xyz_mm: 0.10
+  lambda_relative_mm: 0.05
+  lambda_set_mm: 0.05
+  lambda_surface_mm: 0.0
+  geometry_max_timestep: 200
+  huber_delta_mm: 2.0
+
+train:
+  # 32 samples/GPU x 8 GPUs = effective batch 256. Keep accumulation at one
+  # so H100s parallelize the batch rather than repeating serial micro-steps.
+  batch_size: 32
+  gradient_accumulation_steps: 1
+  num_workers: 8
+  max_steps: 600000
+  lr: 0.00003
+  lr_scheduler: cosine
+  min_lr_ratio: 0.2
+  weight_decay: 0.0
+  grad_clip_norm: 1.0
+  allow_tf32: true
+  log_every: 100
+  val_every: 10000
+  val_batches_per_n: 8
+  validation_timestep: 100
+  save_every: 10000
+  device: cuda
+  seed: 20260828
+  output_dir: outputs/contact_ar_multidex_full_proportional_traj_vpred_600k_8xh100
+
+  # Sampling proportional to dataset size gives every empirical GT set the
+  # same expected exposure (~976 times after 600k steps at global batch 256).
+  n_sampling: proportional
+  low_t_sampling_probability: 0.90
+  low_t_sampling_max: 200
+
+  # Best verified pointwise route: every GT point can be first, every AR
+  # position is trained jointly, and all predicted points target one GT set.
+  symmetric_all_first: true
+  trajectory_training: true
+  rollout_generated_probability_max: 0.0
+  rollout_warmup_steps: 0
+  rollout_ramp_steps: 1
+  prefix_noise_std: 0.0
+  prefix_noise_max_timestep: 0
+
+  # General AR checkpoint only; do not initialize from the one-object K=16
+  # overfit checkpoints. A resumed run takes precedence over this warm start.
+  warmstart_model: outputs/contact_ar_traj_set_rollout0_1k_2x4090/checkpoints/step_00001000.pt
+  resume: null
+
+sampling:
+  n_values: [3, 5]
+  num_steps: 50
+  sampler: ddim
+  project_to_surface: false
+  stabilization_timestep: 0

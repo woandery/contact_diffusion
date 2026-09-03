@@ -1,0 +1,183 @@
+schema: contactdiff-basic-eawq-execution-protocol-v1
+protocol_id: contactdiff-mixed-full-partial-ar-k128-step56k-fk32x32x400-eawq-rankfusion-dro-gym-o10i20-palm0-v6
+supersedes: contactdiff-partial-ar-k128-step64k-fk32x32x400-eawq-rankfusion-dro-gym-o10i20-palm0-v5
+base_protocol_id: contactdiff-multidex-filtered50k-fk64x32x400-eawq-rankfusion-dro-gym-o10i20-palm0-v4
+
+model_checkpoint:
+  family: autoregressive_contact_diffusion_k128_mixed_full_partial_normfull_from8k
+  path: /inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/contact_ar_success_k128_mixedfullpartial_normfull_from8k_lr2e4_gb768_56k_4x4090/model/checkpoints/step_00056000.pt
+  repository_path: weights/v6/step_00056000.pt
+  step: 56000
+  sha256: 05bd542bb0c10a74ed8dafd7586a58ceedb17097dd08eb344011bb91e98516b4
+  size_bytes: 86709034
+  repository_storage: regular_git_explicit_exception_under_github_100mib_limit
+  selection: explicit_step_checkpoint
+  model_type: autoregressive_contact_diffusion
+  training_config: configs/contact_ar_success_k128_mixedfullpartial_normfull_from8k_lr2e4_gb768_56k_4x4090.yaml
+  training_config_sha256: a7a4795c43fc16ab93e890add6bfee08438e3a113339ff334ec0f3001dc1a16b
+  checkpoint_step_semantics: 56000_new_updates_after_step8000_warmstart
+
+contact_source:
+  source: autoregressive_mixedtrained_checkpoint_step56000_fullcloud_inference
+  checkpoint_training_observation: mixed_full_synthetic_partial
+  checkpoint_training_full_probability: 0.5
+  checkpoint_training_partial_probability: 0.5
+  checkpoint_training_partial_keep_ratio: 0.5
+  condition_observation: full_object_pc
+  condition_shape: [2048, 3]
+  synthetic_partial_crop_applied_at_inference: false
+  training_supports_inference_observation: true
+  normalization_reference: full_2048_object_pc_centered_unit_radius
+  representation: free_xyz_then_nearest_full_2048_object_point
+  generation_order: sequential_generated_prefix
+  diffusion_steps_per_point: 50
+  sampler: ddim
+  model_project_to_surface: false
+  fk_adapter_project_to_full_surface: true
+  preserve_raw_free_xyz: true
+  preserve_projection_distance: true
+  base_seed: 20260808
+  seed_formula: base_seed + 1000003*global_hand_index + 1009*global_object_index + sample_index
+  partial_seed_formula: none_not_applicable
+
+generation:
+  contact_sets_per_object: 32
+  particles_per_contact_set: 32
+  optimization_steps: 400
+  retained_per_contact_set: 32
+
+fk_optimization:
+  learning_rate: 0.005
+  contact_weight: 100.0
+  penetration_weight: 100.0
+  self_collision_weight: 100.0
+  approach_weight: 2.0
+  joint_regularization: 0.001
+  force_closure_weight: 0.0
+  dfc_weight: 0.0
+  palm_distance_computation_enabled: true
+  note: palm-distance remains a diagnostic and feasibility gate; its gradient weight is zero for both hands in v4
+
+ranking:
+  name: fusion_old_full_residual
+  version: eawq_rank_fusion_v1
+  computation_mode: exact_ranking_only
+  ranking_only: true
+  ranking_equivalence: exact_same_topk_as_full_diagnostics
+  scope: within_each_contact_set
+  feasibility_gate: feasible_first
+  distal_metric: old_eawq_weighted_mean_residual
+  full_hand_metric: full_hand_weighted_mean_residual
+  metric_direction: lower_is_better
+  normalization: average_tie_rank_mapped_to_0_1
+  fusion: equal_arithmetic_mean
+  tie_break: original_candidate_rank
+  success_labels_used: false
+  final_retained_per_contact_set: 1
+  skipped_unused_diagnostics:
+    - multi_friction_epsilon_and_convex_hull
+    - unweighted_qp
+    - eawq_composite
+    - full_hand_2mm_and_5mm_diagnostics
+  metric_parameters:
+    distal_and_palm:
+      friction_grid: [0.4, 0.6, 0.8]
+      contact_gap_sigma_m: 0.01
+      normal_confidence_factor: 0.25+0.75*c
+      qp_iterations: 80
+    full_hand:
+      contact_band_m: 0.01
+      spatial_suppression_m: 0.003
+      max_contact_regions: 8
+      friction_coefficient: 0.6
+      qp_iterations: 80
+
+ranking_validation:
+  rule_selection_status: inherited_frozen_from_v4
+  deployment_score_reads_success_labels: false
+  independent_confirmation_required: true
+  confirmation_trials: run_all_640_v6_top1_on_same_gpu_physx_protocol
+  prohibit_reporting_offline_rerank_as_independent_result: true
+
+hands:
+  Barrett:
+    global_hand_index: 0
+    fk_config: configs/multigripper_fk_multidex_ood10_barrett_steps400_palm0_v4.yaml
+    diffusion_contact_count: 3
+    fk_optimization:
+      cedex_palm_axis: [0.0, 0.0, 1.0]
+      palm_distance_weight: 0.0
+      palm_target_distance_m: 0.001
+      selection_max_palm_distance_m: 0.012
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+  shadow_hand:
+    global_hand_index: 1
+    fk_config: configs/multigripper_fk_multidex_ood10_shadow_dro_steps400_palm0_v4.yaml
+    diffusion_contact_count: 5
+    fk_optimization:
+      cedex_palm_axis: [1.0, 0.0, 0.0]
+      palm_distance_weight: 0.0
+      palm_target_distance_m: 0.001
+      selection_max_palm_distance_m: 0.012
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+
+isaac_gym:
+  formal_backend: gpu_physx
+  smoke_backend: cpu_physx_compatibility_only
+  mix_backend_results: false
+  steps_per_second: 100
+  substeps: 2
+  closure_steps: 100
+  closure_trajectory: step
+  inner_hold_steps: 0
+  direction_seconds: 1.0
+  direction_order: cedex
+  success_mode: final
+  success_threshold_m: 0.02
+  acceleration_mps2: 0.5
+  robot_friction: 3.0
+  object_friction: 3.0
+  object_density_kg_m3: 500.0
+  joint_stiffness: 1000.0
+  joint_damping: 200.0
+  virtual_root_stiffness: 1000.0
+  virtual_root_damping: 200.0
+  solver_position_iterations: 8
+  solver_velocity_iterations: 0
+  contact_offset_m: 0.01
+  rest_offset_m: 0.0
+  gravity_enabled: false
+  ground_enabled: false
+
+execution:
+  analytic_candidates_per_object_hand: 1024
+  simulated_candidates_per_object_hand: 32
+  simulated_candidates_total_ood10: 640
+  invalid_trial_counts_as_failure: true
+
+reporting:
+  primary_selection: eawq_rank_fusion_top1
+  ablation_selection: original_feasible_then_graspqp_rank0
+  success_definitions: [final, strict]
+  separately_report_raw_contact_projection_error: true
+  status: protocol_frozen_no_v6_physx_results_yet
+
+change_from_v5:
+  changed_fields:
+    - model_checkpoint
+    - contact_source.checkpoint_training_observation
+  unchanged_scopes:
+    - full_2048_point_inference_condition
+    - generation_32x32x400
+    - fk_optimization
+    - exact_ranking_only_eawq
+    - o10_i20_closure
+    - dro_assets_and_isaac_gym
+  resolved_v5_distribution_shift: true
+  rationale: full-cloud inference is directly represented by the new model's 50-percent full-cloud training branch

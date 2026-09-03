@@ -67,6 +67,8 @@ grippers:
   shadow_hand:
     n: 5
     ef_axis: -2
+    # Palmar surface normal in the aligned D(R,O) ShadowHand frame.
+    cedex_palm_axis: [1.0, 0.0, 0.0]
     palm_link: palm
     palm_surface_link: palm
     urdf: shadowhand/shadow_hand_right.urdf

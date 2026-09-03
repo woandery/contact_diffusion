@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import itertools
 import json
 from pathlib import Path
 import sys
@@ -21,8 +22,10 @@ if str(ROOT) not in sys.path:
 from utils.basic_experiment_protocol import (  # noqa: E402
     ALL_PARTICLE_PROTOCOL_ID,
     FILTERED50K_EAWQ_V3_PROTOCOL_ID,
+    MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
     MODEL_145K_ALL_PARTICLE_PROTOCOL_ID,
     O10I20_V2_PROTOCOL_ID,
+    PARTIAL_AR64K_V5_PROTOCOL_ID,
     PROTOCOL_ID,
     SUPPORTED_PROTOCOL_IDS,
     VIRTUAL_ROOT_JOINTS,
@@ -38,6 +41,30 @@ HAND_NAMES = {
     "Barrett": ("barrett", "gendex_barrett"),
     "shadow_hand": ("shadowhand", "shadowhand"),
 }
+
+
+def matched_target_points(candidate: dict, fk: dict) -> list | None:
+    """Recover the optimizer's finger-to-target permutation for old artifacts."""
+
+    explicit = candidate.get("matched_target_object_points")
+    if explicit is not None:
+        return explicit
+    matched = candidate.get("matched_contact_points")
+    targets = fk.get("target_contacts")
+    if matched is None or targets is None or len(matched) != len(targets):
+        return None
+    matched_array = np.asarray(matched, dtype=np.float64)
+    target_array = np.asarray(targets, dtype=np.float64)
+    if matched_array.shape != target_array.shape:
+        return None
+    best = None
+    for permutation in itertools.permutations(range(len(target_array))):
+        assigned = target_array[np.asarray(permutation, dtype=np.int64)]
+        distances = np.linalg.norm(matched_array - assigned, axis=1)
+        score = (float(distances.max()), float(distances.mean()), permutation)
+        if best is None or score < best[0]:
+            best = (score, assigned)
+    return best[1].tolist() if best is not None else None
 
 
 def sha256(path: Path) -> str:
@@ -74,6 +101,15 @@ def main() -> None:
         choices=("top1", "all"),
         default="top1",
         help="Retain only rank 0 (legacy) or every frozen FK particle.",
+    )
+    parser.add_argument(
+        "--allow-filtered-candidates",
+        action="store_true",
+        help=(
+            "When --candidate-mode=all, permit a post-optimization candidate "
+            "file that retains a contiguous rank prefix smaller than the "
+            "original particle budget (for example, a hard contact-error gate)."
+        ),
     )
     parser.add_argument(
         "--execution-protocol",
@@ -184,18 +220,36 @@ def main() -> None:
         if args.candidate_mode == "all"
         else int(baseline["retained_per_contact_set"])
     )
+    if args.allow_filtered_candidates:
+        if args.candidate_mode != "all":
+            parser.error("--allow-filtered-candidates requires --candidate-mode=all")
+        filtered_counts = {
+            len(row.get("fk", {}).get("candidates", []))
+            for row in payload.get("records", [])
+            if row.get("gripper") == args.gripper
+        }
+        if len(filtered_counts) != 1 or not filtered_counts or 0 in filtered_counts:
+            raise ValueError(
+                "Filtered candidates must retain one non-zero, uniform count "
+                f"per record; got {sorted(filtered_counts)}"
+            )
+        retained_count = filtered_counts.pop()
     if execution_protocol is not None:
         allowed_execution_ids = (
             {
                 ALL_PARTICLE_PROTOCOL_ID,
                 FILTERED50K_EAWQ_V3_PROTOCOL_ID,
+                MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
                 MODEL_145K_ALL_PARTICLE_PROTOCOL_ID,
+                PARTIAL_AR64K_V5_PROTOCOL_ID,
                 PROTOCOL_ID,
             }
             if args.candidate_mode == "all"
             else {
                 O10I20_V2_PROTOCOL_ID,
                 FILTERED50K_EAWQ_V3_PROTOCOL_ID,
+                MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
+                PARTIAL_AR64K_V5_PROTOCOL_ID,
                 PROTOCOL_ID,
             }
         )
@@ -269,7 +323,10 @@ def main() -> None:
                     f"protocol: {payload['checkpoint_sha256']} != {expected_hash}"
                 )
         configured_protocol_id = str(actual_execution_id)
-    if int(payload["selection"]["top_k"]) != retained_count:
+    if (
+        not args.allow_filtered_candidates
+        and int(payload["selection"]["top_k"]) != retained_count
+    ):
         raise ValueError("Candidate Top-K does not match frozen retained count")
     records = sorted(
         (row for row in payload["records"] if row["gripper"] == args.gripper),
@@ -408,6 +465,15 @@ def main() -> None:
                     "diffusion_target_contacts_object": fk["target_contacts"],
                     "fk_matched_contact_points_object": candidate.get(
                         "matched_contact_points"
+                    ),
+                    "fk_matched_contact_normals_object": candidate.get(
+                        "matched_contact_normals"
+                    ),
+                    "fk_matched_target_points_object": matched_target_points(
+                        candidate, fk
+                    ),
+                    "fk_matched_target_normals_object": candidate.get(
+                        "matched_target_object_normals"
                     ),
                     "fk_metrics": {
                         key: candidate.get(key)

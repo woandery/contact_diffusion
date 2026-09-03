@@ -47,6 +47,120 @@ def ordered_joint_values(
     return resolved
 
 
+def resolve_local_palm_axis(
+    gripper,
+    hand_spec: Mapping[str, object],
+    initial_joints: torch.Tensor,
+) -> torch.Tensor:
+    """Return the configured palmar surface normal in the aligned hand frame.
+
+    ``cedex_palm_axis`` is an embodiment property, not a vector inferred from
+    fingertip layout.  The legacy fingertip-centroid fallback is retained only
+    for grippers whose configuration has not yet declared a physical palm
+    normal.
+    """
+    configured = hand_spec.get("cedex_palm_axis")
+    if configured is None:
+        batch = torch.atleast_2d(initial_joints)
+        axis = (
+            gripper.tip_points_in_aligned_base(batch).mean(dim=1)[0]
+            - gripper.palm_point_in_aligned_base(batch)[0]
+        )
+    else:
+        axis = torch.as_tensor(
+            configured,
+            device=initial_joints.device,
+            dtype=initial_joints.dtype,
+        ).reshape(-1)
+        if axis.numel() != 3:
+            raise ValueError("cedex_palm_axis must contain exactly three values")
+    if not bool(torch.isfinite(axis).all()):
+        raise ValueError("cedex_palm_axis must be finite")
+    norm = torch.linalg.norm(axis)
+    if float(norm) < 1.0e-8:
+        raise ValueError("cedex_palm_axis must be non-zero")
+    return axis / norm
+
+
+def resolve_local_grasp_approach_axis(
+    gripper,
+    hand_spec: Mapping[str, object],
+    initial_joints: torch.Tensor,
+) -> torch.Tensor:
+    """Return the kinematic finger-extension/enveloping axis.
+
+    Existing configurations remain backward compatible: when an embodiment
+    has not declared ``grasp_approach_axis``, the configured palm axis (or its
+    legacy fingertip-centroid fallback) is reused.
+    """
+    configured = hand_spec.get("grasp_approach_axis")
+    if configured is None:
+        return resolve_local_palm_axis(gripper, hand_spec, initial_joints)
+    axis = torch.as_tensor(
+        configured,
+        device=initial_joints.device,
+        dtype=initial_joints.dtype,
+    ).reshape(-1)
+    if axis.numel() != 3:
+        raise ValueError("grasp_approach_axis must contain exactly three values")
+    if not bool(torch.isfinite(axis).all()):
+        raise ValueError("grasp_approach_axis must be finite")
+    norm = torch.linalg.norm(axis)
+    if float(norm) < 1.0e-8:
+        raise ValueError("grasp_approach_axis must be non-zero")
+    return axis / norm
+
+
+def fitted_contact_plane_directions(
+    contacts: torch.Tensor,
+    object_center: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return deterministic outward-normal and inward-approach directions.
+
+    The smallest-variance PCA/SVD axis is the fitted plane normal. Its sign is
+    oriented from the object center toward the contact centroid; the grasp
+    approach direction is the opposite vector, from an external palm toward
+    the fitted contact plane.
+    """
+    if contacts.ndim != 2 or contacts.shape[-1] != 3 or contacts.shape[0] < 2:
+        raise ValueError("contacts must have shape [N, 3] with N >= 2")
+    center = contacts.mean(dim=0)
+    centered = contacts - center
+    radial = center - object_center.reshape(3)
+    if contacts.shape[0] == 2:
+        # A pair defines a line, not a unique plane. Prefer the outward
+        # midpoint direction projected perpendicular to that line. For a
+        # nearly antipodal pair, fall back deterministically to the coordinate
+        # axis least aligned with the line.
+        line = F.normalize(contacts[1] - contacts[0], dim=0)
+        normal_raw = radial - torch.dot(radial, line) * line
+        if float(torch.linalg.norm(normal_raw)) < 1.0e-8:
+            basis = torch.eye(3, device=contacts.device, dtype=contacts.dtype)
+            reference = basis[torch.abs(line).argmin()]
+            normal_raw = torch.cross(line, reference, dim=0)
+        normal = F.normalize(normal_raw, dim=0)
+        singular_values = torch.linalg.svdvals(centered)
+    else:
+        _, singular_values, right_h = torch.linalg.svd(
+            centered, full_matrices=False
+        )
+        normal = F.normalize(right_h[-1], dim=0)
+    radial_norm = torch.linalg.norm(radial)
+    if float(radial_norm) < 1.0e-8 or not bool(torch.isfinite(singular_values).all()):
+        # A contact centroid at the object center has no meaningful outside;
+        # use a deterministic sign without changing the fitted plane.
+        largest = torch.abs(normal).argmax()
+        sign = torch.where(normal[largest] < 0, normal.new_tensor(-1.0), normal.new_tensor(1.0))
+    else:
+        sign = torch.where(
+            torch.dot(normal, radial) < 0,
+            normal.new_tensor(-1.0),
+            normal.new_tensor(1.0),
+        )
+    outward = normal * sign
+    return outward, -outward
+
+
 def rotation_6d_to_matrix(rotation_6d: torch.Tensor) -> torch.Tensor:
     """Convert Zhou et al. 6D rotations to right-handed 3x3 matrices."""
     first = F.normalize(rotation_6d[..., :3], dim=-1)
@@ -81,21 +195,33 @@ def kabsch_rotation(source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
 def cedex_center_facing_rotations(
     root_positions: torch.Tensor,
     object_center: torch.Tensor,
-    local_palm_axis: torch.Tensor,
+    local_approach_axis: torch.Tensor,
     *,
     generator: torch.Generator,
+    world_approach_direction: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Adapt CEDex's center-facing pose initialization to column rotations.
 
-    CEDex first points a hand-specific palm axis toward the object center and
-    then samples a free roll about that approach direction.  Constructing the
-    mapping from orthonormal bases avoids depending on CEDex's row-vector
-    rotation convention.
+    Map a hand-specific kinematic approach axis to the requested world
+    direction, then sample a free roll about it. Constructing the mapping from
+    orthonormal bases avoids depending on CEDex's row-vector convention.
     """
     count = root_positions.shape[0]
-    approach = object_center.unsqueeze(0) - root_positions
-    approach = F.normalize(approach, dim=1)
-    local_axis = F.normalize(local_palm_axis.reshape(3), dim=0)
+    if world_approach_direction is None:
+        approach = F.normalize(object_center.unsqueeze(0) - root_positions, dim=1)
+    else:
+        requested = world_approach_direction.to(
+            device=root_positions.device,
+            dtype=root_positions.dtype,
+        )
+        if requested.numel() == 3:
+            requested = requested.reshape(1, 3).expand(count, -1)
+        elif requested.shape != (count, 3):
+            raise ValueError(
+                "world_approach_direction must have shape [3] or [count, 3]"
+            )
+        approach = F.normalize(requested, dim=1)
+    local_axis = F.normalize(local_approach_axis.reshape(3), dim=0)
 
     def perpendicular_reference(vectors: torch.Tensor) -> torch.Tensor:
         x_axis = torch.zeros_like(vectors)
@@ -406,16 +532,16 @@ def _geometry_mesh(
     return None
 
 
-def load_urdf_surface_points(
+def load_urdf_surface_samples(
     urdf_path: str | Path,
     points_per_link: int,
     *,
     seed: int = 0,
-) -> dict[str, np.ndarray]:
-    """Sample collision (or fallback visual) geometry in each URDF link frame."""
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Sample surface points and outward normals in each URDF link frame."""
     urdf_path = Path(urdf_path).resolve()
     root = ET.parse(urdf_path).getroot()
-    sampled: dict[str, np.ndarray] = {}
+    sampled: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     for link in root.findall("link"):
         link_name = link.get("name")
         if not link_name:
@@ -430,24 +556,59 @@ def load_urdf_surface_points(
         generator = np.random.default_rng(link_seed)
         count_each = max(1, math.ceil(int(points_per_link) / len(geometries)))
         link_points = []
+        link_normals = []
         for element in geometries:
             mesh_data = _geometry_mesh(element.find("geometry"), urdf_path)
             if mesh_data is None:
                 continue
-            points, _ = _sample_mesh_surface(*mesh_data, count_each, generator)
+            points, normals = _sample_mesh_surface(
+                *mesh_data, count_each, generator
+            )
             origin = element.find("origin")
             xyz = _parse_vector(origin.get("xyz") if origin is not None else None, (0.0, 0.0, 0.0))
             rpy = _parse_vector(origin.get("rpy") if origin is not None else None, (0.0, 0.0, 0.0))
-            link_points.append(points @ _rpy_matrix(rpy).T + xyz[None, :])
+            rotation = _rpy_matrix(rpy)
+            link_points.append(points @ rotation.T + xyz[None, :])
+            link_normals.append(normals @ rotation.T)
         if link_points:
             points = np.concatenate(link_points, axis=0)
+            normals = np.concatenate(link_normals, axis=0)
             if len(points) > int(points_per_link):
                 indices = np.linspace(0, len(points) - 1, int(points_per_link), dtype=np.int64)
                 points = points[indices]
-            sampled[link_name] = points.astype(np.float32)
+                normals = normals[indices]
+            # Mesh winding is not guaranteed to be consistent across imported
+            # URDF assets.  Distal links are locally convex, so orient each
+            # sampled face normal away from the sampled-link centroid.
+            radial = points - points.mean(axis=0, keepdims=True)
+            flip = np.sum(normals * radial, axis=1) < 0.0
+            normals[flip] *= -1.0
+            normals /= np.linalg.norm(
+                normals, axis=1, keepdims=True
+            ).clip(min=1.0e-12)
+            sampled[link_name] = (
+                points.astype(np.float32),
+                normals.astype(np.float32),
+            )
     if not sampled:
         raise ValueError(f"No collision or visual surface geometry found in {urdf_path}")
     return sampled
+
+
+def load_urdf_surface_points(
+    urdf_path: str | Path,
+    points_per_link: int,
+    *,
+    seed: int = 0,
+) -> dict[str, np.ndarray]:
+    """Backward-compatible point-only view of sampled URDF surfaces."""
+
+    return {
+        link: points
+        for link, (points, _) in load_urdf_surface_samples(
+            urdf_path, points_per_link, seed=seed
+        ).items()
+    }
 
 
 def gendex_penetration_energy(
@@ -629,6 +790,228 @@ def dexgraspnet_dfc_energy(
     return (
         force.square().sum(dim=1) + torque.square().sum(dim=1)
     ) / (contact_count * contact_count)
+
+
+def opposing_contact_normal_energy(
+    hand_outward_normals: torch.Tensor,
+    object_outward_normals: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Penalize fingertip/object surface normals that are not opposing.
+
+    At a physically consistent surface contact, both meshes' outward normals
+    face one another and therefore have cosine -1.  The returned energy is in
+    [0, 1], with zero at perfect opposition.  The second tensor contains the
+    per-contact cosine diagnostics.
+    """
+
+    if hand_outward_normals.shape != object_outward_normals.shape:
+        raise ValueError("hand and object normals must have identical shape")
+    if hand_outward_normals.ndim != 3 or hand_outward_normals.shape[-1] != 3:
+        raise ValueError("contact normals must have shape [B, C, 3]")
+    hand = F.normalize(hand_outward_normals, dim=2)
+    object_normal = F.normalize(object_outward_normals, dim=2)
+    cosine = (hand * object_normal).sum(dim=2).clamp(-1.0, 1.0)
+    return 0.5 * (1.0 + cosine).mean(dim=1), cosine
+
+
+@torch.no_grad()
+def kinematic_tip_pad_indices(
+    gripper,
+    initial_joints: torch.Tensor,
+    close_direction: torch.Tensor,
+    *,
+    points_per_finger: int = 12,
+    calibration_fraction: float = 0.5,
+    velocity_step_fraction: float = 0.01,
+    speed_weight: float = 0.25,
+) -> tuple[torch.Tensor, dict[str, object]]:
+    """Select distal pad samples whose outward normals face closing motion.
+
+    The pad is calibrated from embodiment kinematics rather than a guessed
+    hand-specific coordinate axis.  At a half-closed reference pose, surface
+    points that move in the direction of their own outward normal under the
+    configured closing motion are the physical leading/contacting side.
+    """
+
+    if int(points_per_finger) < 1:
+        raise ValueError("points_per_finger must be positive")
+    if not 0.0 <= float(calibration_fraction) <= 1.0:
+        raise ValueError("calibration_fraction must be in [0, 1]")
+    if not 0.0 < float(velocity_step_fraction) <= 0.1:
+        raise ValueError("velocity_step_fraction must be in (0, 0.1]")
+    q0 = initial_joints.to(
+        device=gripper.device, dtype=gripper.dtype
+    ).reshape(-1)
+    direction = close_direction.to(
+        device=gripper.device, dtype=gripper.dtype
+    ).reshape(-1)
+    if q0.numel() != len(gripper.joint_names) or direction.shape != q0.shape:
+        raise ValueError("pad calibration joint vectors have invalid shape")
+    active = direction != 0.0
+    close_limit = torch.where(
+        direction > 0.0,
+        gripper.upper,
+        torch.where(direction < 0.0, gripper.lower, q0),
+    )
+    reference = q0 + float(calibration_fraction) * (close_limit - q0)
+    advanced = reference + float(velocity_step_fraction) * (
+        close_limit - reference
+    )
+    reference = torch.where(active, reference, q0)
+    advanced = torch.where(active, advanced, q0)
+    zero_translation = torch.zeros(
+        (1, 3), device=gripper.device, dtype=gripper.dtype
+    )
+    identity_rotation = torch.tensor(
+        [[1.0, 0.0, 0.0, 0.0, 1.0, 0.0]],
+        device=gripper.device,
+        dtype=gripper.dtype,
+    )
+    points, normals = gripper.tip_link_surface_geometry(
+        reference.unsqueeze(0), zero_translation, identity_rotation
+    )
+    advanced_points, _ = gripper.tip_link_surface_geometry(
+        advanced.unsqueeze(0), zero_translation, identity_rotation
+    )
+    velocity = advanced_points[0] - points[0]
+    speed = torch.linalg.norm(velocity, dim=2)
+    cosine = (normals[0] * F.normalize(velocity, dim=2)).sum(dim=2)
+    count = points.shape[2]
+    if int(points_per_finger) > count:
+        raise ValueError(
+            f"points_per_finger={points_per_finger} exceeds {count} samples"
+        )
+    normalized_speed = speed / speed.amax(dim=1, keepdim=True).clamp_min(1.0e-8)
+    score = cosine + float(speed_weight) * normalized_speed
+    indices = torch.topk(
+        score, k=int(points_per_finger), dim=1, largest=True, sorted=True
+    ).indices
+    selected_cosine = torch.gather(cosine, 1, indices)
+    selected_speed = torch.gather(normalized_speed, 1, indices)
+    diagnostics = {
+        "method": "kinematic_closing_velocity_normal_alignment",
+        "points_per_finger": int(points_per_finger),
+        "calibration_fraction": float(calibration_fraction),
+        "velocity_step_fraction": float(velocity_step_fraction),
+        "speed_weight": float(speed_weight),
+        "indices": indices.detach().cpu().tolist(),
+        "selected_normal_velocity_cosines": (
+            selected_cosine.detach().cpu().tolist()
+        ),
+        "selected_normalized_speeds": selected_speed.detach().cpu().tolist(),
+        "minimum_selected_cosine": float(selected_cosine.min().item()),
+        "mean_selected_cosine": float(selected_cosine.mean().item()),
+    }
+    return indices, diagnostics
+
+
+def gather_tip_surface_samples(
+    values: torch.Tensor,
+    sample_indices: torch.Tensor,
+) -> torch.Tensor:
+    """Gather the same per-finger surface sample indices for every batch."""
+
+    if values.ndim != 4 or values.shape[-1] != 3:
+        raise ValueError("tip surface values must have shape [B, F, P, 3]")
+    if sample_indices.ndim != 2 or sample_indices.shape[0] != values.shape[1]:
+        raise ValueError("sample_indices must have shape [F, K]")
+    gather_index = sample_indices[None, :, :, None].expand(
+        values.shape[0], -1, -1, values.shape[-1]
+    )
+    return torch.gather(values, 2, gather_index)
+
+
+def bottleneck_contact_assignment(
+    finger_target_distances: torch.Tensor,
+    permutations: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Choose the one-to-one assignment with the smallest worst finger gap."""
+
+    if finger_target_distances.ndim != 3:
+        raise ValueError("finger_target_distances must have shape [B, F, T]")
+    batch, fingers, targets = finger_target_distances.shape
+    if fingers != targets:
+        raise ValueError("bottleneck assignment requires equal fingers and targets")
+    if permutations.ndim != 2 or permutations.shape[1] != fingers:
+        raise ValueError("permutations must have shape [P, F]")
+    expanded = finger_target_distances[:, None, :, :].expand(
+        -1, permutations.shape[0], -1, -1
+    )
+    target_index = permutations[None, :, :, None].expand(
+        batch, -1, -1, 1
+    )
+    permutation_distances = torch.gather(
+        expanded, 3, target_index
+    ).squeeze(3)
+    bottleneck = permutation_distances.max(dim=2).values
+    best_index = (
+        bottleneck + 1.0e-3 * permutation_distances.mean(dim=2)
+    ).argmin(dim=1)
+    return permutation_distances, best_index
+
+
+def execution_closure_joint_targets(
+    joints: torch.Tensor,
+    close_direction: torch.Tensor,
+    lower: torch.Tensor,
+    upper: torch.Tensor,
+    *,
+    outer_fraction: float = 0.10,
+    inner_fraction: float = 0.20,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Construct the simulator's O10 and I20 closure poses differentiably."""
+
+    if joints.ndim != 2:
+        raise ValueError("joints must have shape [B, J]")
+    direction = close_direction.to(
+        device=joints.device, dtype=joints.dtype
+    ).reshape(1, -1)
+    if direction.shape[1] != joints.shape[1]:
+        raise ValueError("close_direction does not match joint count")
+    if not 0.0 <= float(outer_fraction) <= 1.0:
+        raise ValueError("outer_fraction must be in [0, 1]")
+    if not 0.0 <= float(inner_fraction) <= 1.0:
+        raise ValueError("inner_fraction must be in [0, 1]")
+    lower = lower.to(device=joints.device, dtype=joints.dtype).reshape(1, -1)
+    upper = upper.to(device=joints.device, dtype=joints.dtype).reshape(1, -1)
+    open_limit = torch.where(direction > 0.0, lower, upper)
+    close_limit = torch.where(direction > 0.0, upper, lower)
+    active = direction != 0.0
+    outer = torch.where(
+        active,
+        joints + float(outer_fraction) * (open_limit - joints),
+        joints,
+    )
+    inner = torch.where(
+        active,
+        joints + float(inner_fraction) * (close_limit - joints),
+        joints,
+    )
+    return outer, inner
+
+
+def closing_direction_alignment_energy(
+    outer_contact_points: torch.Tensor,
+    inner_contact_points: torch.Tensor,
+    object_outward_normals: torch.Tensor,
+    *,
+    cosine_margin: float = 0.5,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Require O10->I20 pad motion to enter along the object's inward normal."""
+
+    if outer_contact_points.shape != inner_contact_points.shape:
+        raise ValueError("outer and inner contact points must have identical shape")
+    if outer_contact_points.shape != object_outward_normals.shape:
+        raise ValueError("contact points and object normals must have identical shape")
+    if outer_contact_points.ndim != 3 or outer_contact_points.shape[-1] != 3:
+        raise ValueError("contact points must have shape [B, C, 3]")
+    if not -1.0 <= float(cosine_margin) <= 1.0:
+        raise ValueError("cosine_margin must be in [-1, 1]")
+    motion = F.normalize(inner_contact_points - outer_contact_points, dim=2)
+    inward = -F.normalize(object_outward_normals, dim=2)
+    cosine = (motion * inward).sum(dim=2).clamp(-1.0, 1.0)
+    energy = F.relu(float(cosine_margin) - cosine).square().mean(dim=1)
+    return energy, cosine
 
 
 def paper_aligned_graspqp_energy(
@@ -1048,6 +1431,7 @@ class DifferentiableGripper:
         base_alignment: list[list[float]],
         surface_points_per_link: int = 0,
         locked_joints: Mapping[str, float] | None = None,
+        excluded_surface_link_prefixes: list[str] | None = None,
         palm_link: str | None = None,
         palm_surface_link: str | None = None,
         *,
@@ -1104,10 +1488,25 @@ class DifferentiableGripper:
             base_alignment, device=self.device, dtype=dtype
         )
         sampled_surface = (
-            load_urdf_surface_points(self.urdf_path, int(surface_points_per_link))
+            load_urdf_surface_samples(
+                self.urdf_path, int(surface_points_per_link)
+            )
             if int(surface_points_per_link) > 0
             else {}
         )
+        self.excluded_surface_link_prefixes = tuple(
+            str(prefix).lower()
+            for prefix in (excluded_surface_link_prefixes or [])
+            if str(prefix)
+        )
+        if self.excluded_surface_link_prefixes:
+            sampled_surface = {
+                link_name: samples
+                for link_name, samples in sampled_surface.items()
+                if not link_name.lower().startswith(
+                    self.excluded_surface_link_prefixes
+                )
+            }
         frame_names = set(self.chain.get_frame_names())
         urdf_root = ET.parse(self.urdf_path).getroot()
         joint_by_child = {}
@@ -1128,6 +1527,7 @@ class DifferentiableGripper:
         # fixed URDF origin until reaching a frame returned by FK.
         self.surface_link_names = []
         self.surface_points_local = {}
+        self.surface_normals_local = {}
         self.surface_source_links: dict[str, set[str]] = {}
         self.collapsed_frame_by_urdf_link: dict[str, str] = {}
 
@@ -1155,9 +1555,10 @@ class DifferentiableGripper:
             self.collapsed_frame_by_urdf_link[link_name] = collapsed_frame(
                 link_name
             )
-        for link_name, points in sampled_surface.items():
+        for link_name, (points, normals) in sampled_surface.items():
             frame_name = link_name
             frame_points = np.asarray(points, dtype=np.float64)
+            frame_normals = np.asarray(normals, dtype=np.float64)
             visited = set()
             while (
                 frame_name not in frame_names
@@ -1177,7 +1578,9 @@ class DifferentiableGripper:
                     origin.get("rpy") if origin is not None else None,
                     (0.0, 0.0, 0.0),
                 )
-                frame_points = frame_points @ _rpy_matrix(rpy).T + xyz[None, :]
+                rotation = _rpy_matrix(rpy)
+                frame_points = frame_points @ rotation.T + xyz[None, :]
+                frame_normals = frame_normals @ rotation.T
                 parent = joint.find("parent")
                 if parent is None or not parent.get("link"):
                     break
@@ -1187,13 +1590,24 @@ class DifferentiableGripper:
             points_tensor = torch.as_tensor(
                 frame_points, device=self.device, dtype=dtype
             )
+            normals_tensor = F.normalize(
+                torch.as_tensor(
+                    frame_normals, device=self.device, dtype=dtype
+                ),
+                dim=1,
+            )
             if frame_name in self.surface_points_local:
                 self.surface_points_local[frame_name] = torch.cat(
                     (self.surface_points_local[frame_name], points_tensor), dim=0
                 )
+                self.surface_normals_local[frame_name] = torch.cat(
+                    (self.surface_normals_local[frame_name], normals_tensor),
+                    dim=0,
+                )
             else:
                 self.surface_link_names.append(frame_name)
                 self.surface_points_local[frame_name] = points_tensor
+                self.surface_normals_local[frame_name] = normals_tensor
             self.surface_source_links.setdefault(frame_name, set()).add(link_name)
         if (
             self.palm_surface_link is not None
@@ -1408,15 +1822,16 @@ class DifferentiableGripper:
             self.palm_surface_link, joints, translation, rotation_6d
         )
 
-    def tip_link_surface_points(
+    def tip_link_surface_geometry(
         self,
         joints: torch.Tensor,
         translation: torch.Tensor,
         rotation_6d: torch.Tensor,
-    ) -> torch.Tensor:
-        """Return sampled distal-link surfaces as [batch, finger, point, xyz]."""
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return distal surface points and outward normals in world frame."""
         transforms = self.chain.forward_kinematics(joints)
         points = []
+        normals = []
         for link in self.tip_links:
             if link not in self.surface_points_local:
                 raise RuntimeError(
@@ -1426,15 +1841,107 @@ class DifferentiableGripper:
             local = self.surface_points_local[link]
             point = torch.einsum("bij,nj->bni", matrix[:, :3, :3], local)
             point = point + matrix[:, None, :3, 3]
+            normal = torch.einsum(
+                "bij,nj->bni",
+                matrix[:, :3, :3],
+                self.surface_normals_local[link],
+            )
+            aligned = torch.einsum(
+                "ij,bnj->bni", self.base_alignment[:3, :3], point
+            ) + self.base_alignment[None, None, :3, 3]
+            aligned_normal = torch.einsum(
+                "ij,bnj->bni", self.base_alignment[:3, :3], normal
+            )
+            points.append(aligned)
+            normals.append(aligned_normal)
+        aligned_surface = torch.stack(points, dim=1)
+        aligned_normals = torch.stack(normals, dim=1)
+        rotation = rotation_6d_to_matrix(rotation_6d)
+        world_points = (
+            torch.einsum("bij,bfnj->bfni", rotation, aligned_surface)
+            + translation[:, None, None, :]
+        )
+        world_normals = F.normalize(
+            torch.einsum("bij,bfnj->bfni", rotation, aligned_normals),
+            dim=3,
+        )
+        return world_points, world_normals
+
+    def tip_link_surface_points(
+        self,
+        joints: torch.Tensor,
+        translation: torch.Tensor,
+        rotation_6d: torch.Tensor,
+    ) -> torch.Tensor:
+        """Return sampled distal-link surfaces as [batch, finger, point, xyz]."""
+
+        points, _ = self.tip_link_surface_geometry(
+            joints, translation, rotation_6d
+        )
+        return points
+
+    def nonpad_surface_points(
+        self,
+        joints: torch.Tensor,
+        translation: torch.Tensor,
+        rotation_6d: torch.Tensor,
+        pad_indices: torch.Tensor,
+        *,
+        points_per_link: int = 12,
+        pad_exclusion_radius_m: float = 0.0,
+    ) -> torch.Tensor:
+        """Return sparse hand surfaces with calibrated distal pads excluded."""
+
+        if not self.surface_link_names:
+            raise RuntimeError("Gripper surface points were not configured")
+        if pad_indices.shape[0] != len(self.tip_links):
+            raise ValueError("pad_indices must have one row per fingertip")
+        excluded = {
+            link: pad_indices[index]
+            for index, link in enumerate(self.tip_links)
+        }
+        transforms = self.chain.forward_kinematics(joints)
+        points = []
+        for link in self.surface_link_names:
+            matrix = self._frame_matrix(transforms, link, joints.shape[0])
+            local = self.surface_points_local[link]
+            if link in excluded:
+                keep = torch.ones(
+                    local.shape[0], device=self.device, dtype=torch.bool
+                )
+                keep[excluded[link]] = False
+                if float(pad_exclusion_radius_m) > 0.0:
+                    # The calibrated pad samples are sparse representatives of
+                    # a continuous compliant patch.  Exclude their local
+                    # neighbourhood as well, otherwise adjacent points on the
+                    # same physical finger pad are incorrectly treated as
+                    # non-contact collision geometry.
+                    pad_local = local[excluded[link]]
+                    neighbour_distance = torch.cdist(
+                        local.unsqueeze(0), pad_local.unsqueeze(0)
+                    )[0].min(dim=1).values
+                    keep &= neighbour_distance > float(pad_exclusion_radius_m)
+                local = local[keep]
+            count = min(max(1, int(points_per_link)), local.shape[0])
+            if local.shape[0] > count:
+                indices = torch.linspace(
+                    0,
+                    local.shape[0] - 1,
+                    count,
+                    device=self.device,
+                ).round().long()
+                local = local[indices]
+            point = torch.einsum("bij,nj->bni", matrix[:, :3, :3], local)
+            point = point + matrix[:, None, :3, 3]
             aligned = torch.einsum(
                 "ij,bnj->bni", self.base_alignment[:3, :3], point
             ) + self.base_alignment[None, None, :3, 3]
             points.append(aligned)
-        aligned_surface = torch.stack(points, dim=1)
+        aligned_surface = torch.cat(points, dim=1)
         rotation = rotation_6d_to_matrix(rotation_6d)
         return (
-            torch.einsum("bij,bfnj->bfni", rotation, aligned_surface)
-            + translation[:, None, None, :]
+            torch.einsum("bij,bnj->bni", rotation, aligned_surface)
+            + translation[:, None, :]
         )
 
     def self_collision_link_points(
@@ -1484,6 +1991,9 @@ def optimize_gripper_to_contacts(
     steps: int = 300,
     learning_rate: float = 5e-3,
     contact_weight: float = 1.0,
+    object_surface_distance_weight: float = 0.0,
+    dexgraspnet_sum_reductions: bool = False,
+    contact_normal_weight: float = 0.0,
     penetration_weight: float = 0.0,
     penetration_cvar_fraction: float = 0.1,
     penetration_cvar_weight: float = 1.0,
@@ -1506,6 +2016,9 @@ def optimize_gripper_to_contacts(
     object_normal_confidence: torch.Tensor | None = None,
     initialization_mode: str = "kabsch",
     cedex_local_palm_axis: torch.Tensor | None = None,
+    grasp_local_approach_axis: torch.Tensor | None = None,
+    grasp_approach_target_mode: str = "object_center",
+    grasp_approach_plane_sides: str = "inward_only",
     close_direction: torch.Tensor | None = None,
     cedex_joint_init_fraction: float = 0.5,
     cedex_cleanup_steps: int = 0,
@@ -1517,8 +2030,30 @@ def optimize_gripper_to_contacts(
     preferred_root_direction: torch.Tensor | None = None,
     assignment_temperature_m: float = 0.005,
     contact_geometry_mode: str = "tip_point",
+    pad_points_per_finger: int = 12,
+    pad_softmin_temperature_m: float = 0.002,
+    pad_calibration_fraction: float = 0.5,
+    pad_velocity_step_fraction: float = 0.01,
+    pad_speed_weight: float = 0.25,
+    closing_direction_weight: float = 0.0,
+    closing_direction_margin: float = 0.5,
+    sweep_collision_weight: float = 0.0,
+    sweep_samples: int = 4,
+    sweep_points_per_link: int = 12,
+    pad_exclusion_radius_m: float = 0.0,
+    closure_outer_fraction: float = 0.10,
+    closure_inner_fraction: float = 0.20,
+    contact_priority_enabled: bool = False,
+    contact_feasibility_threshold_m: float = 0.010,
+    contact_priority_target_m: float = 0.005,
+    contact_priority_temperature_m: float = 0.002,
+    contact_barrier_weight: float = 1000.0,
+    contact_stage1_fraction: float = 1.0 / 3.0,
+    contact_stage2_fraction: float = 2.0 / 3.0,
+    contact_feasibility_required: bool = False,
     selection_min_envelope_cosine: float | None = None,
     selection_min_approach_cosine: float | None = None,
+    cosine_feasibility_gates_enabled: bool = False,
     palm_distance_weight: float = 0.0,
     palm_target_distance_m: float = 0.001,
     selection_max_palm_distance_m: float | None = None,
@@ -1543,14 +2078,19 @@ def optimize_gripper_to_contacts(
     force_closure_svd_gain: float = 0.1,
     selection_rank_mode: str = "optimization",
     initialization_contacts: torch.Tensor | None = None,
+    initial_root_poses: torch.Tensor | None = None,
+    initial_joint_states: torch.Tensor | None = None,
 ) -> dict:
     """Fit a gripper to contacts using the frozen base energy plus optional FC.
 
-    The optimized objective contains contact fit, confidence-aware point-cloud
-    penetration, self collision, palm approach, joint prior, and unsigned palm
-    distance.  When enabled, execution-aware force closure is a seventh term;
-    final candidate ranking remains independently controlled by
-    ``selection_rank_mode``.
+    The optimized objective contains contact fit, optional opposing surface-
+    normal alignment, confidence-aware point-cloud penetration, self collision,
+    palm approach, joint prior, and unsigned palm distance.  When enabled,
+    execution-aware force closure is an additional term.  The optional object
+    surface-distance term is the point-cloud counterpart of DexGraspNet's
+    ``E_dis``: it sums the distance from every selected hand contact to the
+    object surface independently of the generated-target Chamfer.  Final candidate
+    ranking remains independently controlled by ``selection_rank_mode``.
     """
     device, dtype = gripper.device, gripper.dtype
     # clone() converts tensors produced under torch.inference_mode() back into
@@ -1653,6 +2193,10 @@ def optimize_gripper_to_contacts(
         raise ValueError("penetration_hinge_threshold_m must be non-negative")
     if float(penetration_hinge_weight) < 0.0:
         raise ValueError("penetration_hinge_weight must be non-negative")
+    if float(object_surface_distance_weight) < 0.0:
+        raise ValueError("object_surface_distance_weight must be non-negative")
+    if float(contact_normal_weight) < 0.0:
+        raise ValueError("contact_normal_weight must be non-negative")
     if not 0.0 < float(self_collision_cvar_fraction) <= 1.0:
         raise ValueError("self_collision_cvar_fraction must be in (0, 1]")
     if float(self_collision_cvar_weight) < 0.0:
@@ -1670,20 +2214,102 @@ def optimize_gripper_to_contacts(
         )
     if float(assignment_temperature_m) <= 0:
         raise ValueError("assignment_temperature_m must be positive")
-    if contact_geometry_mode not in {"tip_point", "distal_surface"}:
+    if contact_geometry_mode not in {
+        "tip_point", "distal_surface", "distal_pad"
+    }:
         raise ValueError(
-            "contact_geometry_mode must be 'tip_point' or 'distal_surface'"
+            "contact_geometry_mode must be tip_point, distal_surface, or distal_pad"
         )
     if (
-        contact_geometry_mode == "distal_surface"
+        contact_geometry_mode in {"distal_surface", "distal_pad"}
         and contact_assignment_mode != "soft_permutation"
     ):
         raise ValueError(
-            "distal_surface currently requires soft_permutation assignment"
+            "surface contact geometry requires soft_permutation assignment"
+        )
+    if float(contact_normal_weight) > 0.0 and (
+        contact_geometry_mode not in {"distal_surface", "distal_pad"}
+        or contact_assignment_mode != "soft_permutation"
+    ):
+        raise ValueError(
+            "contact normal alignment requires distal surface/pad with "
+            "soft_permutation assignment"
+        )
+    if int(pad_points_per_finger) < 1:
+        raise ValueError("pad_points_per_finger must be positive")
+    if float(pad_softmin_temperature_m) <= 0.0:
+        raise ValueError("pad_softmin_temperature_m must be positive")
+    if float(closing_direction_weight) < 0.0:
+        raise ValueError("closing_direction_weight must be non-negative")
+    if not -1.0 <= float(closing_direction_margin) <= 1.0:
+        raise ValueError("closing_direction_margin must be in [-1, 1]")
+    if float(sweep_collision_weight) < 0.0:
+        raise ValueError("sweep_collision_weight must be non-negative")
+    if int(sweep_samples) < 2:
+        raise ValueError("sweep_samples must be at least 2")
+    if int(sweep_points_per_link) < 1:
+        raise ValueError("sweep_points_per_link must be positive")
+    if float(pad_exclusion_radius_m) < 0.0:
+        raise ValueError("pad_exclusion_radius_m must be non-negative")
+    if float(contact_feasibility_threshold_m) <= 0.0:
+        raise ValueError("contact_feasibility_threshold_m must be positive")
+    if not 0.0 < float(contact_priority_target_m) <= float(
+        contact_feasibility_threshold_m
+    ):
+        raise ValueError(
+            "contact_priority_target_m must be in (0, feasibility threshold]"
+        )
+    if float(contact_priority_temperature_m) <= 0.0:
+        raise ValueError("contact_priority_temperature_m must be positive")
+    if float(contact_barrier_weight) < 0.0:
+        raise ValueError("contact_barrier_weight must be non-negative")
+    if not 0.0 < float(contact_stage1_fraction) < float(
+        contact_stage2_fraction
+    ) < 1.0:
+        raise ValueError(
+            "contact stage fractions must satisfy 0 < stage1 < stage2 < 1"
+        )
+    if contact_priority_enabled and int(steps) < 3:
+        raise ValueError("contact-priority optimization requires at least 3 steps")
+    for name, value in (
+        ("closure_outer_fraction", closure_outer_fraction),
+        ("closure_inner_fraction", closure_inner_fraction),
+    ):
+        if not 0.0 <= float(value) <= 1.0:
+            raise ValueError(f"{name} must be in [0, 1]")
+    if (
+        float(closing_direction_weight) > 0.0
+        or float(sweep_collision_weight) > 0.0
+    ) and contact_geometry_mode != "distal_pad":
+        raise ValueError(
+            "closing-direction and sweep constraints require distal_pad geometry"
+        )
+    if contact_priority_enabled and (
+        contact_geometry_mode != "distal_pad"
+        or contact_assignment_mode != "soft_permutation"
+    ):
+        raise ValueError(
+            "contact-priority optimization requires distal_pad geometry and "
+            "soft_permutation assignment"
         )
     if selection_rank_mode not in {"optimization", "graspqp"}:
         raise ValueError(
             "selection_rank_mode must be 'optimization' or 'graspqp'"
+        )
+    if grasp_approach_target_mode not in {"object_center", "contact_plane_normal"}:
+        raise ValueError(
+            "grasp_approach_target_mode must be object_center or contact_plane_normal"
+        )
+    if grasp_approach_plane_sides not in {"inward_only", "bilateral"}:
+        raise ValueError(
+            "grasp_approach_plane_sides must be inward_only or bilateral"
+        )
+    if (
+        grasp_approach_plane_sides == "bilateral"
+        and grasp_approach_target_mode != "contact_plane_normal"
+    ):
+        raise ValueError(
+            "bilateral plane sides require contact_plane_normal target mode"
         )
     if resolved_palm_distance_weight < 0:
         raise ValueError("palm_distance_weight must be non-negative")
@@ -1745,8 +2371,10 @@ def optimize_gripper_to_contacts(
         float(force_closure_weight) > 0.0
         or force_closure_target_fraction is not None
     )
-    if force_closure_enabled and contact_geometry_mode != "distal_surface":
-        raise ValueError("force closure requires distal_surface contact geometry")
+    if force_closure_enabled and contact_geometry_mode not in {
+        "distal_surface", "distal_pad"
+    }:
+        raise ValueError("force closure requires distal surface/pad geometry")
     palm_constraints_enabled = (
         resolved_palm_distance_weight > 0.0
         or selection_max_palm_distance_m is not None
@@ -1771,6 +2399,27 @@ def optimize_gripper_to_contacts(
 
     generator = torch.Generator(device=device).manual_seed(int(seed))
     q0 = initial_joints.clamp(gripper.lower + 1e-5, gripper.upper - 1e-5)
+    resolved_close_direction = None
+    if close_direction is not None:
+        resolved_close_direction = close_direction.to(
+            device=device, dtype=dtype
+        ).reshape(-1)
+        if resolved_close_direction.numel() != q0.numel():
+            raise ValueError("close_direction does not match joint count")
+    if contact_geometry_mode == "distal_pad" and resolved_close_direction is None:
+        raise ValueError("distal_pad geometry requires close_direction")
+    pad_indices = None
+    pad_diagnostics = None
+    if contact_geometry_mode == "distal_pad":
+        pad_indices, pad_diagnostics = kinematic_tip_pad_indices(
+            gripper,
+            q0,
+            resolved_close_direction,
+            points_per_finger=pad_points_per_finger,
+            calibration_fraction=pad_calibration_fraction,
+            velocity_step_fraction=pad_velocity_step_fraction,
+            speed_weight=pad_speed_weight,
+        )
     object_center = object_pc.mean(dim=0)
 
     def contact_patch_frame(contacts: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -1797,6 +2446,43 @@ def optimize_gripper_to_contacts(
     contact_center, contact_patch_direction = contact_patch_frame(target_contacts)
     initialization_contact_center, initialization_patch_direction = (
         contact_patch_frame(initialization_contacts)
+    )
+    contact_plane_outward, contact_plane_approach = (
+        fitted_contact_plane_directions(target_contacts, object_center)
+    )
+    initialization_plane_outward, initialization_plane_approach = (
+        fitted_contact_plane_directions(initialization_contacts, object_center)
+    )
+    grasp_axis_input = (
+        cedex_local_palm_axis
+        if grasp_local_approach_axis is None
+        else grasp_local_approach_axis
+    )
+    grasp_axis = (
+        None
+        if grasp_axis_input is None
+        else F.normalize(
+            grasp_axis_input.to(device=device, dtype=dtype).reshape(3), dim=0
+        )
+    )
+    palm_normal_axis = (
+        None
+        if cedex_local_palm_axis is None
+        else F.normalize(
+            cedex_local_palm_axis.to(device=device, dtype=dtype).reshape(3), dim=0
+        )
+    )
+    plane_side_signs = torch.ones(particles, device=device, dtype=dtype)
+    if grasp_approach_plane_sides == "bilateral":
+        # Deterministic 50/50 hypotheses preserve particle pairing with the
+        # inward-only run and consume no additional RNG state. +1 follows the
+        # inward approach normal; -1 explores the opposite plane hemisphere.
+        plane_side_signs[particles - particles // 2 :] = -1.0
+    initialization_plane_approach_batch = (
+        plane_side_signs[:, None] * initialization_plane_approach.unsqueeze(0)
+    )
+    contact_plane_approach_batch = (
+        plane_side_signs[:, None] * contact_plane_approach.unsqueeze(0)
     )
     if preferred_root_direction is None:
         desired_root_direction = -contact_patch_direction
@@ -1825,16 +2511,11 @@ def optimize_gripper_to_contacts(
     kabsch_particle_count = 0
     with torch.no_grad():
         if initialization_mode in {"cedex", "enveloping"}:
-            if cedex_local_palm_axis is None or close_direction is None:
+            if grasp_axis is None or resolved_close_direction is None:
                 raise ValueError(
-                    "Center-facing initialization requires cedex_local_palm_axis "
+                    "Center-facing initialization requires a grasp approach axis "
                     "and close_direction"
                 )
-            close_direction = close_direction.to(
-                device=device, dtype=dtype
-            ).reshape(-1)
-            if close_direction.numel() != q0.numel():
-                raise ValueError("close_direction does not match joint count")
             random_fraction = float(cedex_joint_init_fraction) * torch.rand(
                 particles,
                 q0.numel(),
@@ -1843,16 +2524,18 @@ def optimize_gripper_to_contacts(
                 generator=generator,
             )
             close_limit = torch.where(
-                close_direction > 0,
+                resolved_close_direction > 0,
                 gripper.upper,
-                torch.where(close_direction < 0, gripper.lower, gripper.lower),
+                torch.where(
+                    resolved_close_direction < 0, gripper.lower, gripper.lower
+                ),
             )
             joint_init = q0.unsqueeze(0) + random_fraction * (
                 close_limit.unsqueeze(0) - q0.unsqueeze(0)
             )
             # For joints without a configured closing direction, retain
             # CEDex's lower-half joint-range sampling.
-            neutral = close_direction == 0
+            neutral = resolved_close_direction == 0
             if bool(neutral.any()):
                 lower_half = gripper.lower.unsqueeze(0) + random_fraction * (
                     gripper.upper - gripper.lower
@@ -1906,8 +2589,13 @@ def optimize_gripper_to_contacts(
             rotation = cedex_center_facing_rotations(
                 translation_init,
                 object_center,
-                cedex_local_palm_axis.to(device=device, dtype=dtype),
+                grasp_axis,
                 generator=generator,
+                world_approach_direction=(
+                    initialization_plane_approach_batch
+                    if grasp_approach_target_mode == "contact_plane_normal"
+                    else None
+                ),
             )
             rotation_init = torch.cat(
                 (rotation[:, :, 0], rotation[:, :, 1]), dim=-1
@@ -1995,8 +2683,13 @@ def optimize_gripper_to_contacts(
                 rotation = cedex_center_facing_rotations(
                     aligned_palm_position,
                     object_center,
-                    cedex_local_palm_axis.to(device=device, dtype=dtype),
+                    grasp_axis,
                     generator=generator,
+                    world_approach_direction=(
+                        initialization_plane_approach_batch
+                        if grasp_approach_target_mode == "contact_plane_normal"
+                        else None
+                    ),
                 )
                 rotation_init = torch.cat(
                     (rotation[:, :, 0], rotation[:, :, 1]), dim=-1
@@ -2054,6 +2747,37 @@ def optimize_gripper_to_contacts(
                 target_permutations.mean(dim=1) - rotated_center
             )
 
+    if (initial_root_poses is None) != (initial_joint_states is None):
+        raise ValueError(
+            "initial_root_poses and initial_joint_states must be provided together"
+        )
+    if initial_root_poses is not None:
+        warm_poses = initial_root_poses.to(
+            device=device, dtype=dtype
+        ).detach().clone()
+        warm_joints = initial_joint_states.to(
+            device=device, dtype=dtype
+        ).detach().clone()
+        if warm_poses.shape != (particles, 4, 4):
+            raise ValueError(
+                "initial_root_poses must have shape [particles, 4, 4]"
+            )
+        if warm_joints.shape != (particles, len(gripper.joint_names)):
+            raise ValueError(
+                "initial_joint_states must have shape [particles, joints]"
+            )
+        translation_init = warm_poses[:, :3, 3]
+        warm_rotation = warm_poses[:, :3, :3]
+        rotation_init = torch.cat(
+            (warm_rotation[:, :, 0], warm_rotation[:, :, 1]), dim=1
+        )
+        q_raw_init = gripper.unconstrain_joints(
+            warm_joints.clamp(
+                gripper.lower + 1.0e-5,
+                gripper.upper - 1.0e-5,
+            )
+        )
+
     initial_state_digest = hashlib.sha256()
     for initial_tensor in (translation_init, rotation_init, q_raw_init):
         initial_state_digest.update(
@@ -2066,14 +2790,6 @@ def optimize_gripper_to_contacts(
     q_raw = torch.nn.Parameter(q_raw_init)
     optimizer = torch.optim.Adam([translation, rotation_6d, q_raw], lr=float(learning_rate))
     target_batch = target_contacts.unsqueeze(0).expand(particles, -1, -1)
-    palm_axis = (
-        None
-        if cedex_local_palm_axis is None
-        else F.normalize(
-            cedex_local_palm_axis.to(device=device, dtype=dtype).reshape(3),
-            dim=0,
-        )
-    )
     assigned_target_batch = None
     permuted_targets = None
     if contact_assignment_mode in {"permutation", "soft_permutation"}:
@@ -2106,6 +2822,235 @@ def optimize_gripper_to_contacts(
     force_closure_start_step = int(
         math.floor(float(force_closure_start_fraction) * int(steps))
     )
+    contact_stage1_stop = int(
+        math.floor(float(contact_stage1_fraction) * int(steps))
+    )
+    contact_stage2_stop = int(
+        math.floor(float(contact_stage2_fraction) * int(steps))
+    )
+    contact_stage_diagnostics: list[dict[str, object]] = []
+
+    def match_surface_contacts(
+        current_joints: torch.Tensor,
+    ) -> dict[str, torch.Tensor]:
+        full_points, full_normals = gripper.tip_link_surface_geometry(
+            current_joints, translation, rotation_6d
+        )
+        if contact_geometry_mode == "distal_pad":
+            surface_points = gather_tip_surface_samples(
+                full_points, pad_indices
+            )
+            surface_normals = gather_tip_surface_samples(
+                full_normals, pad_indices
+            )
+        else:
+            surface_points = full_points
+            surface_normals = full_normals
+        all_distances = torch.linalg.norm(
+            surface_points[:, :, :, None, :]
+            - target_contacts[None, None, None, :, :],
+            dim=4,
+        )
+        if contact_geometry_mode == "distal_pad":
+            pad_temperature = float(pad_softmin_temperature_m)
+            finger_target_distances = -pad_temperature * (
+                torch.logsumexp(-all_distances / pad_temperature, dim=2)
+                - math.log(all_distances.shape[2])
+            )
+        else:
+            finger_target_distances = all_distances.min(dim=2).values
+        # Feasibility is measured against a real sampled pad point.  Do not
+        # use the normalized soft-min here: it has a temperature-dependent
+        # positive offset and is unsuitable for a physical 10 mm gate.
+        hard_finger_target_distances = all_distances.min(dim=2).values
+        expanded_costs = finger_target_distances[:, None, :, :].expand(
+            -1, permutations.shape[0], -1, -1
+        )
+        target_indices = permutations[None, :, :, None].expand(
+            current_joints.shape[0], -1, -1, 1
+        )
+        permutation_costs = torch.gather(
+            expanded_costs, 3, target_indices
+        ).squeeze(3).mean(dim=2)
+        hard_permutation_distances, bottleneck_assignment_index = (
+            bottleneck_contact_assignment(
+                hard_finger_target_distances, permutations
+            )
+        )
+        if contact_priority_enabled:
+            # Bottleneck assignment prevents one finger (usually the thumb)
+            # from being sacrificed to improve the other four.  Mean distance
+            # is only a deterministic tie-breaker.
+            assignment_index = bottleneck_assignment_index
+        else:
+            assignment_index = permutation_costs.argmin(dim=1)
+        best_permutations = permutations[assignment_index]
+        batch_indices = torch.arange(
+            current_joints.shape[0], device=device
+        )[:, None]
+        finger_indices = torch.arange(
+            target_contacts.shape[0], device=device
+        )[None, :]
+        assigned_sample_distances = all_distances[
+            batch_indices,
+            finger_indices,
+            :,
+            best_permutations,
+        ]
+        assigned_finger_distances = assigned_sample_distances.min(dim=2).values
+        if contact_geometry_mode == "distal_pad":
+            match_weights = torch.softmax(
+                -assigned_sample_distances / float(pad_softmin_temperature_m),
+                dim=2,
+            )
+            matched_points = (
+                match_weights[:, :, :, None] * surface_points
+            ).sum(dim=2)
+            matched_normals = F.normalize(
+                (match_weights[:, :, :, None] * surface_normals).sum(dim=2),
+                dim=2,
+            )
+        else:
+            nearest_indices = assigned_sample_distances.argmin(dim=2)
+            matched_points = surface_points[
+                batch_indices, finger_indices, nearest_indices
+            ]
+            matched_normals = surface_normals[
+                batch_indices, finger_indices, nearest_indices
+            ]
+            match_weights = F.one_hot(
+                nearest_indices, num_classes=surface_points.shape[2]
+            ).to(dtype=dtype)
+        return {
+            "surface_points": surface_points,
+            "surface_normals": surface_normals,
+            "permutation_costs": permutation_costs,
+            "hard_permutation_distances": hard_permutation_distances,
+            "best_permutations": best_permutations,
+            "assigned_finger_distances": assigned_finger_distances,
+            "matched_points": matched_points,
+            "matched_normals": matched_normals,
+            "match_weights": match_weights,
+        }
+
+    def execution_path_terms(
+        current_joints: torch.Tensor,
+        match_weights: torch.Tensor,
+        matched_object_normals: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+        zero = torch.zeros(
+            current_joints.shape[0], device=device, dtype=dtype
+        )
+        zero_cosines = torch.zeros(
+            (current_joints.shape[0], len(gripper.tip_links)),
+            device=device,
+            dtype=dtype,
+        )
+        empty_sweep = {
+            key: zero
+            for key in (
+                "energy", "mean", "cvar", "hinge", "max", "raw_max",
+                "confidence_weighted_max", "fraction", "mean_confidence",
+            )
+        }
+        if (
+            float(closing_direction_weight) <= 0.0
+            and float(sweep_collision_weight) <= 0.0
+        ):
+            return zero, zero_cosines, empty_sweep
+        outer_joints, inner_joints = execution_closure_joint_targets(
+            current_joints,
+            resolved_close_direction,
+            gripper.lower,
+            gripper.upper,
+            outer_fraction=closure_outer_fraction,
+            inner_fraction=closure_inner_fraction,
+        )
+        if float(closing_direction_weight) > 0.0:
+            outer_full, _ = gripper.tip_link_surface_geometry(
+                outer_joints, translation, rotation_6d
+            )
+            inner_full, _ = gripper.tip_link_surface_geometry(
+                inner_joints, translation, rotation_6d
+            )
+            outer_pad = gather_tip_surface_samples(outer_full, pad_indices)
+            inner_pad = gather_tip_surface_samples(inner_full, pad_indices)
+            outer_match = (
+                match_weights[:, :, :, None] * outer_pad
+            ).sum(dim=2)
+            inner_match = (
+                match_weights[:, :, :, None] * inner_pad
+            ).sum(dim=2)
+            closing_energy, closing_cosines = (
+                closing_direction_alignment_energy(
+                    outer_match,
+                    inner_match,
+                    matched_object_normals,
+                    cosine_margin=closing_direction_margin,
+                )
+            )
+        else:
+            closing_energy = zero
+            closing_cosines = zero_cosines
+        if float(sweep_collision_weight) > 0.0:
+            alphas = torch.linspace(
+                0.0,
+                1.0,
+                int(sweep_samples),
+                device=device,
+                dtype=dtype,
+            )
+            path_joints = (
+                outer_joints[:, None, :]
+                + alphas[None, :, None]
+                * (inner_joints - outer_joints)[:, None, :]
+            )
+            flat_joints = path_joints.reshape(-1, current_joints.shape[1])
+            flat_translation = translation[:, None, :].expand(
+                -1, int(sweep_samples), -1
+            ).reshape(-1, 3)
+            flat_rotation = rotation_6d[:, None, :].expand(
+                -1, int(sweep_samples), -1
+            ).reshape(-1, 6)
+            swept_surface = gripper.nonpad_surface_points(
+                flat_joints,
+                flat_translation,
+                flat_rotation,
+                pad_indices,
+                points_per_link=sweep_points_per_link,
+                pad_exclusion_radius_m=pad_exclusion_radius_m,
+            )
+            flat_terms = point_cloud_penetration_energy(
+                swept_surface,
+                object_pc,
+                object_surface_normals,
+                object_normal_confidence,
+                cvar_fraction=penetration_cvar_fraction,
+                cvar_weight=penetration_cvar_weight,
+                depth_mode=penetration_depth_mode,
+                aggregation=penetration_aggregation,
+                confidence_mode=penetration_confidence_mode,
+                gate_metric=penetration_gate_metric,
+                hinge_threshold_m=penetration_hinge_threshold_m,
+                hinge_weight=penetration_hinge_weight,
+            )
+            sweep_terms = {}
+            for key in empty_sweep:
+                values = flat_terms[key]
+                path_values = values.reshape(
+                    current_joints.shape[0], int(sweep_samples)
+                )
+                sweep_terms[key] = (
+                    path_values.max(dim=1).values
+                    if key in {
+                        "max", "raw_max", "confidence_weighted_max", "fraction"
+                    }
+                    else path_values.mean(dim=1)
+                )
+        else:
+            sweep_terms = empty_sweep
+        return closing_energy, closing_cosines, sweep_terms
+
     for step_index in range(int(steps)):
         joints = gripper.constrain_joints(q_raw)
         tips = gripper.tip_points(joints, translation, rotation_6d)
@@ -2115,30 +3060,16 @@ def optimize_gripper_to_contacts(
             + distances.min(dim=1).values.mean(dim=1)
         )
         matched_finger_points = tips
+        matched_finger_normals = None
         matched_finger_object_points = None
         matched_finger_object_normals = None
+        surface_match = None
         if contact_assignment_mode == "soft_permutation":
-            if contact_geometry_mode == "distal_surface":
-                distal_surfaces = gripper.tip_link_surface_points(
-                    joints, translation, rotation_6d
-                )
-                all_surface_distances = torch.linalg.norm(
-                    distal_surfaces[:, :, :, None, :]
-                    - target_contacts[None, None, None, :, :],
-                    dim=4,
-                )
-                finger_target_distances, nearest_surface_indices = (
-                    all_surface_distances.min(dim=2)
-                )
-                expanded_costs = finger_target_distances[:, None, :, :].expand(
-                    -1, permutations.shape[0], -1, -1
-                )
-                target_indices = permutations[None, :, :, None].expand(
-                    particles, -1, -1, 1
-                )
-                permutation_costs = torch.gather(
-                    expanded_costs, 3, target_indices
-                ).squeeze(3).mean(dim=2)
+            if contact_geometry_mode in {"distal_surface", "distal_pad"}:
+                surface_match = match_surface_contacts(joints)
+                distal_surfaces = surface_match["surface_points"]
+                distal_surface_normals = surface_match["surface_normals"]
+                permutation_costs = surface_match["permutation_costs"]
             else:
                 permutation_costs = torch.linalg.norm(
                     tips[:, None, :, :] - permuted_targets[None, :, :, :],
@@ -2149,13 +3080,9 @@ def optimize_gripper_to_contacts(
             finger_indices = torch.arange(
                 target_contacts.shape[0], device=device
             )[None, :]
-            if contact_geometry_mode == "distal_surface":
-                surface_indices = nearest_surface_indices[
-                    batch_indices, finger_indices, best_permutations
-                ]
-                matched_finger_points = distal_surfaces[
-                    batch_indices, finger_indices, surface_indices
-                ]
+            if surface_match is not None:
+                matched_finger_points = surface_match["matched_points"]
+                matched_finger_normals = surface_match["matched_normals"]
             matched_finger_object_points = target_object_contacts[
                 best_permutations
             ]
@@ -2170,6 +3097,23 @@ def optimize_gripper_to_contacts(
                 + temperature * math.log(permutation_costs.shape[1])
                 )
             )
+            if contact_priority_enabled:
+                per_finger_contact_distance = surface_match[
+                    "assigned_finger_distances"
+                ]
+                priority_temperature = max(
+                    0.25 * float(contact_priority_temperature_m),
+                    float(contact_priority_temperature_m)
+                    * (1.0 - float(step_index) / float(max(int(steps), 1))),
+                )
+                contact_loss = (
+                    priority_temperature
+                    * torch.logsumexp(
+                        per_finger_contact_distance / priority_temperature,
+                        dim=1,
+                    )
+                    + 0.1 * per_finger_contact_distance.mean(dim=1)
+                )
             if kabsch_particle_count and contact_geometry_mode == "tip_point":
                 contact_loss[:kabsch_particle_count] = (
                     chamfer_contact_loss[:kabsch_particle_count]
@@ -2180,6 +3124,43 @@ def optimize_gripper_to_contacts(
             ).mean(dim=1)
         else:
             contact_loss = chamfer_contact_loss
+        object_surface_distance_loss = torch.cdist(
+            matched_finger_points, object_pc.unsqueeze(0)
+        ).min(dim=2).values.sum(dim=1)
+        if float(contact_normal_weight) > 0.0:
+            if (
+                matched_finger_normals is None
+                or matched_finger_object_normals is None
+            ):
+                raise RuntimeError(
+                    "contact normal alignment did not resolve matched normals"
+                )
+            contact_normal_loss, _ = opposing_contact_normal_energy(
+                matched_finger_normals, matched_finger_object_normals
+            )
+        else:
+            contact_normal_loss = torch.zeros_like(contact_loss)
+        if contact_geometry_mode == "distal_pad":
+            if surface_match is None or matched_finger_object_normals is None:
+                raise RuntimeError("pad contact matching was not resolved")
+            (
+                closing_direction_loss,
+                _,
+                sweep_collision_terms,
+            ) = execution_path_terms(
+                joints,
+                surface_match["match_weights"],
+                matched_finger_object_normals,
+            )
+        else:
+            closing_direction_loss = torch.zeros_like(contact_loss)
+            sweep_collision_terms = {
+                key: torch.zeros_like(contact_loss)
+                for key in (
+                    "energy", "mean", "cvar", "hinge", "max", "raw_max",
+                    "confidence_weighted_max", "fraction", "mean_confidence",
+                )
+            }
         joint_loss = (((joints - q0) / gripper.span) ** 2).mean(dim=1)
         palm_positions = gripper.palm_points(
             joints, translation, rotation_6d
@@ -2190,15 +3171,19 @@ def optimize_gripper_to_contacts(
         envelope_side_cosine = torch.einsum(
             "bi,i->b", root_direction, desired_root_direction
         )
-        if palm_axis is not None:
-            palm_world = torch.einsum(
-                "bij,j->bi", rotation_6d_to_matrix(rotation_6d), palm_axis
+        if grasp_axis is not None:
+            grasp_world = torch.einsum(
+                "bij,j->bi", rotation_6d_to_matrix(rotation_6d), grasp_axis
             )
-            approach_direction = F.normalize(
-                object_center.unsqueeze(0) - palm_positions, dim=1
+            approach_direction = (
+                contact_plane_approach_batch
+                if grasp_approach_target_mode == "contact_plane_normal"
+                else F.normalize(
+                    object_center.unsqueeze(0) - palm_positions, dim=1
+                )
             )
             envelope_approach_cosine = (
-                palm_world * approach_direction
+                grasp_world * approach_direction
             ).sum(dim=1)
             envelope_approach_loss = (
                 1.0 - envelope_approach_cosine
@@ -2252,6 +3237,7 @@ def optimize_gripper_to_contacts(
                     "confidence_weighted_max", "fraction", "mean_confidence",
                 )
             }
+            hand_surface = None
         if float(self_collision_weight) > 0:
             self_link_points = gripper.self_collision_link_points(
                 joints, self_collision_points_per_link
@@ -2333,14 +3319,122 @@ def optimize_gripper_to_contacts(
                 )
             }
             force_closure_ramp = 0.0
-        main_energy = (
-            float(contact_weight) * contact_loss
-            + float(penetration_weight) * penetration_terms["energy"]
-            + float(self_collision_weight) * self_collision_terms["energy"]
+        contact_energy = float(contact_weight) * contact_loss
+        if dexgraspnet_sum_reductions:
+            # Official DexGraspNet sums rather than averages its sampled
+            # penetration and self-penetration violations.  Preserve that
+            # scale even though this XYZ port uses oriented surface samples.
+            penetration_objective = (
+                penetration_terms["mean"]
+                * (hand_surface.shape[1] if hand_surface is not None else 1)
+            )
+            self_collision_objective = (
+                self_collision_terms["mean"]
+                * max(1, len(gripper.self_collision_pairs))
+            )
+        else:
+            penetration_objective = (
+                penetration_terms["max"]
+                if contact_priority_enabled
+                else penetration_terms["energy"]
+            )
+            self_collision_objective = (
+                self_collision_terms["max"]
+                if contact_priority_enabled
+                else self_collision_terms["energy"]
+            )
+        sweep_collision_objective = (
+            sweep_collision_terms["max"]
+            if contact_priority_enabled
+            else sweep_collision_terms["energy"]
+        )
+        static_secondary_energy = (
+            float(object_surface_distance_weight)
+            * object_surface_distance_loss
+            + float(contact_normal_weight) * contact_normal_loss
+            + float(penetration_weight) * penetration_objective
+            + float(self_collision_weight) * self_collision_objective
             + float(envelope_approach_weight) * envelope_approach_loss
             + float(joint_regularization) * joint_loss
             + resolved_palm_distance_weight * palm_distance_loss
         )
+        path_secondary_energy = (
+            float(closing_direction_weight) * closing_direction_loss
+            + float(sweep_collision_weight) * sweep_collision_objective
+        )
+        if contact_priority_enabled:
+            max_contact_gap = per_finger_contact_distance.max(dim=1).values
+            normalized_violation = F.relu(
+                max_contact_gap - float(contact_feasibility_threshold_m)
+            ) / float(contact_feasibility_threshold_m)
+            contact_barrier = normalized_violation.square()
+            contact_energy = (
+                contact_energy
+                + float(contact_barrier_weight) * contact_barrier
+            )
+            # The stage transition is per particle.  A particle that has not
+            # yet reached the stricter target remains in contact-only mode,
+            # instead of being pulled away by normals or collision terms.
+            contact_ready = (
+                max_contact_gap <= float(contact_feasibility_threshold_m)
+            ).detach().to(dtype=dtype)
+            if step_index in {
+                0,
+                contact_stage1_stop,
+                contact_stage2_stop,
+            }:
+                label = {
+                    0: "initial",
+                    contact_stage1_stop: "stage1_end",
+                    contact_stage2_stop: "stage2_end",
+                }[step_index]
+                detached_gap = max_contact_gap.detach()
+                contact_stage_diagnostics.append(
+                    {
+                        "label": label,
+                        "completed_updates": int(step_index),
+                        "minimum_max_finger_error_m": float(
+                            detached_gap.min().item()
+                        ),
+                        "median_max_finger_error_m": float(
+                            detached_gap.median().item()
+                        ),
+                        "mean_max_finger_error_m": float(
+                            detached_gap.mean().item()
+                        ),
+                        "particles_within_10mm": int(
+                            (
+                                detached_gap
+                                <= float(contact_feasibility_threshold_m)
+                            ).sum().item()
+                        ),
+                        "particles_within_stage1_target": int(
+                            (
+                                detached_gap
+                                <= float(contact_priority_target_m)
+                            ).sum().item()
+                        ),
+                    }
+                )
+            if step_index < contact_stage1_stop:
+                main_energy = contact_energy
+            elif step_index < contact_stage2_stop:
+                main_energy = (
+                    contact_energy
+                    + contact_ready * static_secondary_energy
+                )
+            else:
+                main_energy = (
+                    contact_energy
+                    + contact_ready
+                    * (static_secondary_energy + path_secondary_energy)
+                )
+        else:
+            main_energy = (
+                contact_energy
+                + static_secondary_energy
+                + path_secondary_energy
+            )
         total, _, _ = blend_main_and_force_closure_energy(
             main_energy,
             force_closure_terms["energy"],
@@ -2361,42 +3455,26 @@ def optimize_gripper_to_contacts(
             + distances.min(dim=1).values.mean(dim=1)
         )
         matched_contact_points = tips
+        matched_finger_normals = None
         matched_finger_object_points = None
         matched_finger_object_normals = None
+        per_finger_contact_distances = torch.zeros(
+            (particles, len(gripper.tip_links)), device=device, dtype=dtype
+        )
+        final_surface_match = None
         if permuted_targets is not None:
-            if contact_geometry_mode == "distal_surface":
-                distal_surfaces = gripper.tip_link_surface_points(
-                    joints, translation, rotation_6d
-                )
-                all_surface_distances = torch.linalg.norm(
-                    distal_surfaces[:, :, :, None, :]
-                    - target_contacts[None, None, None, :, :],
-                    dim=4,
-                )
-                finger_target_distances, nearest_surface_indices = (
-                    all_surface_distances.min(dim=2)
-                )
-                expanded_costs = finger_target_distances[:, None, :, :].expand(
-                    -1, permutations.shape[0], -1, -1
-                )
-                target_indices = permutations[None, :, :, None].expand(
-                    particles, -1, -1, 1
-                )
-                final_permutation_costs = torch.gather(
-                    expanded_costs, 3, target_indices
-                ).squeeze(3).mean(dim=2)
-                best_permutations = permutations[
-                    final_permutation_costs.argmin(dim=1)
+            if contact_geometry_mode in {"distal_surface", "distal_pad"}:
+                final_surface_match = match_surface_contacts(joints)
+                distal_surfaces = final_surface_match["surface_points"]
+                distal_surface_normals = final_surface_match["surface_normals"]
+                final_permutation_costs = final_surface_match[
+                    "permutation_costs"
                 ]
-                batch_indices = torch.arange(particles, device=device)[:, None]
-                finger_indices = torch.arange(
-                    target_contacts.shape[0], device=device
-                )[None, :]
-                surface_indices = nearest_surface_indices[
-                    batch_indices, finger_indices, best_permutations
-                ]
-                matched_contact_points = distal_surfaces[
-                    batch_indices, finger_indices, surface_indices
+                best_permutations = final_surface_match["best_permutations"]
+                matched_contact_points = final_surface_match["matched_points"]
+                matched_finger_normals = final_surface_match["matched_normals"]
+                per_finger_contact_distances = final_surface_match[
+                    "assigned_finger_distances"
                 ]
                 matched_distances = torch.cdist(
                     matched_contact_points, target_batch
@@ -2428,6 +3506,64 @@ def optimize_gripper_to_contacts(
         else:
             assigned_contact_losses = contact_losses
             fit_contact_losses = contact_losses
+        if final_surface_match is None:
+            if matched_finger_object_points is not None:
+                per_finger_contact_distances = torch.linalg.norm(
+                    tips - matched_finger_object_points, dim=2
+                )
+            else:
+                per_finger_contact_distances = torch.cdist(
+                    tips, target_batch
+                ).min(dim=2).values
+        object_surface_distance_losses = torch.cdist(
+            matched_contact_points, object_pc.unsqueeze(0)
+        ).min(dim=2).values.sum(dim=1)
+        if float(contact_normal_weight) > 0.0:
+            if (
+                matched_finger_normals is None
+                or matched_finger_object_normals is None
+            ):
+                raise RuntimeError(
+                    "final contact normal alignment did not resolve normals"
+                )
+            contact_normal_losses, contact_normal_cosines = (
+                opposing_contact_normal_energy(
+                    matched_finger_normals, matched_finger_object_normals
+                )
+            )
+        else:
+            contact_normal_losses = torch.zeros_like(contact_losses)
+            contact_normal_cosines = torch.zeros(
+                (particles, len(gripper.tip_links)),
+                device=device,
+                dtype=dtype,
+            )
+        if contact_geometry_mode == "distal_pad":
+            if final_surface_match is None or matched_finger_object_normals is None:
+                raise RuntimeError("final pad contact matching was not resolved")
+            (
+                closing_direction_losses,
+                closing_direction_cosines,
+                sweep_collision_terms,
+            ) = execution_path_terms(
+                joints,
+                final_surface_match["match_weights"],
+                matched_finger_object_normals,
+            )
+        else:
+            closing_direction_losses = torch.zeros_like(contact_losses)
+            closing_direction_cosines = torch.zeros(
+                (particles, len(gripper.tip_links)),
+                device=device,
+                dtype=dtype,
+            )
+            sweep_collision_terms = {
+                key: torch.zeros_like(contact_losses)
+                for key in (
+                    "energy", "mean", "cvar", "hinge", "max", "raw_max",
+                    "confidence_weighted_max", "fraction", "mean_confidence",
+                )
+            }
         joint_losses = (((joints - q0) / gripper.span) ** 2).mean(dim=1)
         palm_positions = gripper.palm_points(
             joints, translation, rotation_6d
@@ -2441,15 +3577,20 @@ def optimize_gripper_to_contacts(
         contact_patch_side_cosines = torch.einsum(
             "bi,i->b", root_directions, contact_patch_direction
         )
-        if palm_axis is not None:
-            palm_world = torch.einsum(
-                "bij,j->bi", rotation_6d_to_matrix(rotation_6d), palm_axis
+        final_rotation_matrices = rotation_6d_to_matrix(rotation_6d)
+        if grasp_axis is not None:
+            grasp_world = torch.einsum(
+                "bij,j->bi", final_rotation_matrices, grasp_axis
             )
-            approach_directions = F.normalize(
-                object_center.unsqueeze(0) - palm_positions, dim=1
+            approach_directions = (
+                contact_plane_approach_batch
+                if grasp_approach_target_mode == "contact_plane_normal"
+                else F.normalize(
+                    object_center.unsqueeze(0) - palm_positions, dim=1
+                )
             )
             envelope_approach_cosines = (
-                palm_world * approach_directions
+                grasp_world * approach_directions
             ).sum(dim=1)
             envelope_approach_losses = (
                 1.0 - envelope_approach_cosines
@@ -2457,6 +3598,15 @@ def optimize_gripper_to_contacts(
         else:
             envelope_approach_cosines = torch.zeros_like(contact_losses)
             envelope_approach_losses = torch.zeros_like(contact_losses)
+        if palm_normal_axis is not None:
+            palm_normal_world = torch.einsum(
+                "bij,j->bi", final_rotation_matrices, palm_normal_axis
+            )
+            palm_normal_plane_cosines = (
+                palm_normal_world * contact_plane_approach.unsqueeze(0)
+            ).sum(dim=1)
+        else:
+            palm_normal_plane_cosines = torch.zeros_like(contact_losses)
         if palm_constraints_enabled:
             palm_surface = gripper.palm_surface_points(
                 joints, translation, rotation_6d
@@ -2531,6 +3681,7 @@ def optimize_gripper_to_contacts(
                     "confidence_weighted_max", "fraction", "mean_confidence",
                 )
             }
+            hand_surface = None
         penetration_losses = penetration_terms["mean"]
         penetration_cvar_losses = penetration_terms["cvar"]
         penetration_hinge_losses = penetration_terms["hinge"]
@@ -2557,7 +3708,11 @@ def optimize_gripper_to_contacts(
                 key: torch.zeros_like(contact_losses)
                 for key in ("energy", "mean", "cvar", "max", "fraction")
             }
-        if force_closure_enabled:
+        if (
+            force_closure_enabled
+            or float(contact_normal_weight) > 0.0
+            or contact_geometry_mode == "distal_pad"
+        ):
             realized_fingers = realized_surface_contact_regions(
                 distal_surfaces,
                 object_pc,
@@ -2565,7 +3720,7 @@ def optimize_gripper_to_contacts(
                 object_normal_confidence,
                 gap_sigma_m=force_closure_gap_sigma_m,
             )
-            if force_closure_include_palm:
+            if force_closure_enabled and force_closure_include_palm:
                 realized_palm = realized_surface_contact_regions(
                     palm_surface[:, None, :, :],
                     object_pc,
@@ -2581,24 +3736,41 @@ def optimize_gripper_to_contacts(
                 }
             else:
                 realized_contacts = realized_fingers
-            force_closure_terms = execution_aware_force_closure_energy(
-                realized_contacts["hand_contact"],
-                realized_contacts["outward_normal"],
-                realized_contacts["activation"],
-                object_center,
-                torque_scale,
-                friction_coefficient=graspqp_friction_coefficient,
-                cone_edges=graspqp_cone_edges,
-                qp_iterations=force_closure_qp_iterations,
-                qp_weight=force_closure_qp_weight,
-                dfc_weight=force_closure_dfc_weight,
-                coverage_weight=force_closure_coverage_weight,
-                formulation=force_closure_formulation,
-                normal_confidence=realized_contacts["normal_confidence"],
-                max_force_coefficient=force_closure_max_force_coefficient,
-                torque_weight=force_closure_torque_weight,
-                svd_gain=force_closure_svd_gain,
-            )
+            if force_closure_enabled:
+                force_closure_terms = execution_aware_force_closure_energy(
+                    realized_contacts["hand_contact"],
+                    realized_contacts["outward_normal"],
+                    realized_contacts["activation"],
+                    object_center,
+                    torque_scale,
+                    friction_coefficient=graspqp_friction_coefficient,
+                    cone_edges=graspqp_cone_edges,
+                    qp_iterations=force_closure_qp_iterations,
+                    qp_weight=force_closure_qp_weight,
+                    dfc_weight=force_closure_dfc_weight,
+                    coverage_weight=force_closure_coverage_weight,
+                    formulation=force_closure_formulation,
+                    normal_confidence=realized_contacts["normal_confidence"],
+                    max_force_coefficient=force_closure_max_force_coefficient,
+                    torque_weight=force_closure_torque_weight,
+                    svd_gain=force_closure_svd_gain,
+                )
+            else:
+                force_closure_terms = {
+                    key: torch.zeros_like(contact_losses)
+                    for key in (
+                        "energy",
+                        "qp_score",
+                        "qp_residual",
+                        "minimum_singular_value",
+                        "dfc",
+                        "coverage",
+                        "mean_activation",
+                        "svd_geometric_mean",
+                        "mean_force_coefficient",
+                        "max_force_coefficient",
+                    )
+                }
             realized_gaps = realized_contacts["gap"]
             realized_confidences = realized_contacts["normal_confidence"]
         else:
@@ -2630,14 +3802,99 @@ def optimize_gripper_to_contacts(
         self_collision_cvar_losses = self_collision_terms["cvar"]
         max_self_collisions = self_collision_terms["max"]
         self_collision_pair_fractions = self_collision_terms["fraction"]
+        final_penetration_objective = (
+            penetration_terms["mean"]
+            * (hand_surface.shape[1] if hand_surface is not None else 1)
+            if dexgraspnet_sum_reductions
+            else (
+                penetration_terms["max"]
+                if contact_priority_enabled
+                else penetration_terms["energy"]
+            )
+        )
+        final_self_collision_objective = (
+            self_collision_terms["mean"]
+            * max(1, len(gripper.self_collision_pairs))
+            if dexgraspnet_sum_reductions
+            else (
+                self_collision_terms["max"]
+                if contact_priority_enabled
+                else self_collision_terms["energy"]
+            )
+        )
         main_losses = (
-            float(contact_weight) * fit_contact_losses
-            + float(penetration_weight) * penetration_terms["energy"]
-            + float(self_collision_weight) * self_collision_terms["energy"]
+            float(contact_weight)
+            * (
+                (
+                    0.25 * float(contact_priority_temperature_m)
+                    * torch.logsumexp(
+                        per_finger_contact_distances
+                        / (0.25 * float(contact_priority_temperature_m)),
+                        dim=1,
+                    )
+                    + 0.1 * per_finger_contact_distances.mean(dim=1)
+                )
+                if contact_priority_enabled
+                else fit_contact_losses
+            )
+            + float(object_surface_distance_weight)
+            * object_surface_distance_losses
+            + float(contact_normal_weight) * contact_normal_losses
+            + float(closing_direction_weight) * closing_direction_losses
+            + float(sweep_collision_weight)
+            * (
+                sweep_collision_terms["max"]
+                if contact_priority_enabled
+                else sweep_collision_terms["energy"]
+            )
+            + float(penetration_weight)
+            * final_penetration_objective
+            + float(self_collision_weight)
+            * final_self_collision_objective
             + float(envelope_approach_weight) * envelope_approach_losses
             + float(joint_regularization) * joint_losses
             + resolved_palm_distance_weight * palm_distance_losses
         )
+        max_finger_contact_errors = per_finger_contact_distances.max(
+            dim=1
+        ).values
+        all_fingers_within_threshold = max_finger_contact_errors <= float(
+            contact_feasibility_threshold_m
+        )
+        if contact_priority_enabled:
+            final_normalized_violation = F.relu(
+                max_finger_contact_errors
+                - float(contact_feasibility_threshold_m)
+            ) / float(contact_feasibility_threshold_m)
+            main_losses = (
+                main_losses
+                + float(contact_barrier_weight)
+                * final_normalized_violation.square()
+            )
+            contact_stage_diagnostics.append(
+                {
+                    "label": "stage3_end",
+                    "completed_updates": int(steps),
+                    "minimum_max_finger_error_m": float(
+                        max_finger_contact_errors.min().item()
+                    ),
+                    "median_max_finger_error_m": float(
+                        max_finger_contact_errors.median().item()
+                    ),
+                    "mean_max_finger_error_m": float(
+                        max_finger_contact_errors.mean().item()
+                    ),
+                    "particles_within_10mm": int(
+                        all_fingers_within_threshold.sum().item()
+                    ),
+                    "particles_within_stage1_target": int(
+                        (
+                            max_finger_contact_errors
+                            <= float(contact_priority_target_m)
+                        ).sum().item()
+                    ),
+                }
+            )
         losses, final_force_closure_scale, final_force_closure_fraction = (
             blend_main_and_force_closure_energy(
                 main_losses,
@@ -2654,13 +3911,26 @@ def optimize_gripper_to_contacts(
             else losses
         )
         if (
+            contact_priority_enabled
+            or
             selection_max_penetration_m is not None
-            or selection_min_envelope_cosine is not None
-            or selection_min_approach_cosine is not None
             or selection_max_palm_distance_m is not None
+            or (
+                cosine_feasibility_gates_enabled
+                and (
+                    selection_min_envelope_cosine is not None
+                    or selection_min_approach_cosine is not None
+                )
+            )
         ):
             feasible = torch.ones_like(max_penetrations, dtype=torch.bool)
             violation = torch.zeros_like(max_penetrations)
+            if contact_priority_enabled:
+                feasible &= all_fingers_within_threshold
+                violation += F.relu(
+                    max_finger_contact_errors
+                    - float(contact_feasibility_threshold_m)
+                )
             if selection_max_penetration_m is not None:
                 feasible &= max_penetrations <= float(
                     selection_max_penetration_m
@@ -2669,7 +3939,10 @@ def optimize_gripper_to_contacts(
                     max_penetrations
                     - float(selection_max_penetration_m)
                 )
-            if selection_min_envelope_cosine is not None:
+            if (
+                cosine_feasibility_gates_enabled
+                and selection_min_envelope_cosine is not None
+            ):
                 feasible &= envelope_side_cosines >= float(
                     selection_min_envelope_cosine
                 )
@@ -2677,7 +3950,10 @@ def optimize_gripper_to_contacts(
                     float(selection_min_envelope_cosine)
                     - envelope_side_cosines
                 )
-            if selection_min_approach_cosine is not None:
+            if (
+                cosine_feasibility_gates_enabled
+                and selection_min_approach_cosine is not None
+            ):
                 feasible &= envelope_approach_cosines >= float(
                     selection_min_approach_cosine
                 )
@@ -2706,12 +3982,17 @@ def optimize_gripper_to_contacts(
             )
             # Stable sorting makes exact ties deterministic: particle index is
             # the final tie-breaker because particles are stored in index order.
-            best = torch.argsort(selection_key, stable=True)[:count]
+            ordered = torch.argsort(selection_key, stable=True)
+            if contact_priority_enabled and contact_feasibility_required:
+                ordered = ordered[all_fingers_within_threshold[ordered]]
+            best = ordered[:count]
         else:
             feasible = torch.ones_like(max_penetrations, dtype=torch.bool)
             best = torch.argsort(rank_scores, stable=True)[:count]
         selection_feasible_particles = int(feasible.sum().item())
-        selection_fallback_used = selection_feasible_particles < count
+        selection_fallback_used = bool(
+            best.numel() > 0 and (~feasible[best]).any().item()
+        )
         poses = gripper.root_pose_matrix(translation, rotation_6d)
 
     candidates = []
@@ -2734,11 +4015,67 @@ def optimize_gripper_to_contacts(
                     ).item()
                 ),
                 "envelope_filter_pass": bool(
-                    feasible[particle_index].item()
+                    not cosine_feasibility_gates_enabled
+                    or selection_min_envelope_cosine is None
+                    or envelope_side_cosines[particle_index]
+                    >= float(selection_min_envelope_cosine)
+                ),
+                "cosine_filter_pass": bool(
+                    (
+                        not cosine_feasibility_gates_enabled
+                        or selection_min_envelope_cosine is None
+                        or envelope_side_cosines[particle_index]
+                        >= float(selection_min_envelope_cosine)
+                    )
+                    and (
+                        not cosine_feasibility_gates_enabled
+                        or selection_min_approach_cosine is None
+                        or envelope_approach_cosines[particle_index]
+                        >= float(selection_min_approach_cosine)
+                    )
                 ),
                 "contact_chamfer_m": float(contact_losses[particle_index].item()),
+                "object_surface_distance_sum_m": float(
+                    object_surface_distance_losses[particle_index].item()
+                ),
                 "assigned_contact_error_m": float(
                     assigned_contact_losses[particle_index].item()
+                ),
+                "per_finger_contact_errors_m": per_finger_contact_distances[
+                    particle_index
+                ].detach().cpu().tolist(),
+                "max_finger_contact_error_m": float(
+                    max_finger_contact_errors[particle_index].item()
+                ),
+                "all_fingers_within_contact_threshold": bool(
+                    all_fingers_within_threshold[particle_index].item()
+                ),
+                "contact_normal_energy": float(
+                    contact_normal_losses[particle_index].item()
+                ),
+                "contact_normal_mean_cosine": float(
+                    contact_normal_cosines[particle_index].mean().item()
+                ),
+                "contact_normal_cosines": contact_normal_cosines[
+                    particle_index
+                ].detach().cpu().tolist(),
+                "closing_direction_energy": float(
+                    closing_direction_losses[particle_index].item()
+                ),
+                "closing_direction_mean_cosine": float(
+                    closing_direction_cosines[particle_index].mean().item()
+                ),
+                "closing_direction_cosines": closing_direction_cosines[
+                    particle_index
+                ].detach().cpu().tolist(),
+                "sweep_collision_energy": float(
+                    sweep_collision_terms["energy"][particle_index].item()
+                ),
+                "sweep_mean_penetration_m": float(
+                    sweep_collision_terms["mean"][particle_index].item()
+                ),
+                "sweep_max_penetration_m": float(
+                    sweep_collision_terms["max"][particle_index].item()
                 ),
                 "mean_penetration_m": float(penetration_losses[particle_index].item()),
                 "cvar_penetration_m": float(
@@ -2748,6 +4085,12 @@ def optimize_gripper_to_contacts(
                     penetration_hinge_losses[particle_index].item()
                 ),
                 "max_penetration_m": float(max_penetrations[particle_index].item()),
+                "dexgraspnet_penetration_sum_proxy_m": float(
+                    (
+                        penetration_terms["mean"]
+                        * (hand_surface.shape[1] if hand_surface is not None else 1)
+                    )[particle_index].item()
+                ),
                 "raw_max_penetration_m": float(
                     raw_max_penetrations[particle_index].item()
                 ),
@@ -2780,6 +4123,21 @@ def optimize_gripper_to_contacts(
                 ),
                 "palm_approach_cosine": float(
                     envelope_approach_cosines[particle_index].item()
+                ),
+                "grasp_approach_cosine": float(
+                    envelope_approach_cosines[particle_index].item()
+                ),
+                "grasp_approach_plane_sign": int(
+                    plane_side_signs[particle_index].item()
+                ),
+                "grasp_approach_world_target": (
+                    contact_plane_approach_batch[particle_index]
+                    .detach()
+                    .cpu()
+                    .tolist()
+                ),
+                "palm_normal_to_contact_plane_cosine": float(
+                    palm_normal_plane_cosines[particle_index].item()
                 ),
                 "palm_unsigned_distance_m": float(
                     palm_unsigned_distances[particle_index].item()
@@ -2835,6 +4193,16 @@ def optimize_gripper_to_contacts(
                 "force_closure_contact_gaps_m": realized_gaps[
                     particle_index
                 ].detach().cpu().tolist(),
+                "distal_surface_gaps_m": realized_gaps[
+                    particle_index, : len(gripper.tip_links)
+                ].detach().cpu().tolist(),
+                "pad_surface_gaps_m": (
+                    realized_gaps[
+                        particle_index, : len(gripper.tip_links)
+                    ].detach().cpu().tolist()
+                    if contact_geometry_mode == "distal_pad"
+                    else None
+                ),
                 "force_closure_normal_confidences": realized_confidences[
                     particle_index
                 ].detach().cpu().tolist(),
@@ -2859,16 +4227,111 @@ def optimize_gripper_to_contacts(
                 "matched_contact_points": matched_contact_points[
                     particle_index
                 ].detach().cpu().tolist(),
+                "matched_contact_normals": (
+                    None
+                    if matched_finger_normals is None
+                    else matched_finger_normals[
+                        particle_index
+                    ].detach().cpu().tolist()
+                ),
+                "matched_target_object_points": (
+                    None
+                    if matched_finger_object_points is None
+                    else matched_finger_object_points[
+                        particle_index
+                    ].detach().cpu().tolist()
+                ),
+                "matched_target_object_normals": (
+                    None
+                    if matched_finger_object_normals is None
+                    else matched_finger_object_normals[
+                        particle_index
+                    ].detach().cpu().tolist()
+                ),
             }
         )
     return {
         "energy_model": (
-            "wc*contact + wp*(pc_penetration_mean + lambda_p*CVaR) + "
+            "wc*contact + wn*opposing_contact_normal + "
+            "wd*closing_direction + wsw*nonpad_sweep_collision + "
+            "wp*(pc_penetration_mean + lambda_p*CVaR) + "
             "ws*(self_mean + lambda_s*CVaR) + wa*approach + wq*joint + "
             "wpd*palm_unsigned_distance + wfc*execution_aware_FC"
         ),
         "object_geometry": geometry_diagnostics,
+        "contact_normal_weight": float(contact_normal_weight),
+        "contact_normal_target": "opposing_outward_surface_normals",
+        "pad_calibration": pad_diagnostics,
+        "pad_points_per_finger": int(pad_points_per_finger),
+        "pad_softmin_temperature_m": float(pad_softmin_temperature_m),
+        "pad_exclusion_radius_m": float(pad_exclusion_radius_m),
+        "contact_priority": {
+            "enabled": bool(contact_priority_enabled),
+            "objective": "bottleneck_hard_assignment_then_max_finger_gap",
+            "secondary_collision_aggregation": "hard_max",
+            "feasibility_threshold_m": float(
+                contact_feasibility_threshold_m
+            ),
+            "stage1_target_m": float(contact_priority_target_m),
+            "temperature_m": float(contact_priority_temperature_m),
+            "barrier_weight": float(contact_barrier_weight),
+            "stage1_fraction": float(contact_stage1_fraction),
+            "stage2_fraction": float(contact_stage2_fraction),
+            "feasibility_required": bool(contact_feasibility_required),
+            "final_feasible_particles": int(
+                all_fingers_within_threshold.sum().item()
+            ),
+            "retained_candidates": int(len(candidates)),
+            "stage_diagnostics": contact_stage_diagnostics,
+        },
+        "closing_direction_weight": float(closing_direction_weight),
+        "closing_direction_margin": float(closing_direction_margin),
+        "closing_direction_target": "O10_to_I20_along_object_inward_normal",
+        "sweep_collision_weight": float(sweep_collision_weight),
+        "sweep_samples": int(sweep_samples),
+        "sweep_points_per_link": int(sweep_points_per_link),
+        "sweep_collision_geometry": (
+            "all_sampled_hand_surfaces_except_expanded_distal_pad"
+            if float(pad_exclusion_radius_m) > 0.0
+            else "all_sampled_hand_surfaces_except_distal_pad"
+        ),
+        "closure_outer_fraction": float(closure_outer_fraction),
+        "closure_inner_fraction": float(closure_inner_fraction),
         "initialization_mode": initialization_mode,
+        "cedex_local_palm_axis": (
+            None
+            if cedex_local_palm_axis is None
+            else F.normalize(
+                torch.as_tensor(
+                    cedex_local_palm_axis,
+                    device=initial_joints.device,
+                    dtype=initial_joints.dtype,
+                ).reshape(-1),
+                dim=0,
+            ).detach().cpu().tolist()
+        ),
+        "palm_normal_axis": (
+            None
+            if palm_normal_axis is None
+            else palm_normal_axis.detach().cpu().tolist()
+        ),
+        "grasp_local_approach_axis": (
+            None
+            if grasp_axis is None
+            else grasp_axis.detach().cpu().tolist()
+        ),
+        "grasp_approach_target_mode": grasp_approach_target_mode,
+        "grasp_approach_plane_sides": grasp_approach_plane_sides,
+        "grasp_approach_plane_side_counts": {
+            "inward": int((plane_side_signs > 0).sum().item()),
+            "opposite": int((plane_side_signs < 0).sum().item()),
+        },
+        "contact_plane_outward_normal": (
+            contact_plane_outward.detach().cpu().tolist()
+        ),
+        "contact_plane_approach_direction": (
+            contact_plane_approach.detach().cpu().tolist()
+        ),
         "cedex_joint_init_fraction": float(cedex_joint_init_fraction),
         "cedex_cleanup_steps": int(cedex_cleanup_steps),
         "cedex_cleanup_learning_rate": float(
@@ -2898,6 +4361,10 @@ def optimize_gripper_to_contacts(
         "contact_assignment_mode": contact_assignment_mode,
         "assignment_temperature_m": float(assignment_temperature_m),
         "contact_geometry_mode": contact_geometry_mode,
+        "object_surface_distance_weight": float(
+            object_surface_distance_weight
+        ),
+        "dexgraspnet_sum_reductions": bool(dexgraspnet_sum_reductions),
         "selection_min_envelope_cosine": (
             None
             if selection_min_envelope_cosine is None
@@ -2907,6 +4374,12 @@ def optimize_gripper_to_contacts(
             None
             if selection_min_approach_cosine is None
             else float(selection_min_approach_cosine)
+        ),
+        "cosine_feasibility_gates_enabled": bool(
+            cosine_feasibility_gates_enabled
+        ),
+        "cosine_thresholds_are_diagnostics_only": bool(
+            not cosine_feasibility_gates_enabled
         ),
         "palm_surface_link": gripper.palm_surface_link,
         "palm_distance_weight": float(resolved_palm_distance_weight),
@@ -2963,6 +4436,7 @@ def optimize_gripper_to_contacts(
             initialization_patch_direction.detach().cpu().tolist()
         ),
         "initialization_state_sha256": initialization_state_sha256,
+        "warm_start_enabled": bool(initial_root_poses is not None),
         "initialization_contacts_equal_target": bool(
             torch.equal(initialization_contacts, target_contacts)
         ),
@@ -3009,6 +4483,9 @@ def load_gripper_from_calibration(
             config.get("fk_optimization", {}).get("surface_points_per_link", 0)
         ),
         locked_joints=spec.get("locked_joints"),
+        excluded_surface_link_prefixes=spec.get(
+            "excluded_surface_link_prefixes"
+        ),
         palm_link=spec.get("palm_link"),
         palm_surface_link=spec.get("palm_surface_link"),
         device=device,

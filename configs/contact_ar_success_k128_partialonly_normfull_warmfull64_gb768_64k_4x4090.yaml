@@ -1,0 +1,32 @@
+base_config: contact_ar_success_k128_epsilonauc_fullpc_norm_warmk32_gb768_64k_8x4090.yaml
+
+dataset:
+  # Every visit constructs a new random view-facing 50% crop. The crop is
+  # resampled to the same 2048x3 tensor expected by the full-cloud model.
+  object_observation_mode: synthetic_partial
+  partial_probability: 1.0
+  synthetic_partial_keep_ratio: 0.5
+  partial_normalization_reference: full
+  num_points: 2048
+  full_geometry_num_points: 2048
+  normalize: true
+  append_observation_type_feature: false
+
+model:
+  object_input_dim: 3
+
+train:
+  output_dir: outputs/contact_ar_success_k128_partialonly_normfull_warmfull64_gb768_64k_4x4090/model
+  # This node exposes about 48 GB per 4090, so 4*192 directly preserves the
+  # old effective batch of 8*96=768 without gradient accumulation.
+  batch_size: 192
+  gradient_accumulation_steps: 1
+  max_steps: 64000
+  lr: 0.0008
+  lr_scheduler: cosine
+  min_lr_ratio: 0.2
+  val_every: 8000
+  save_every: 8000
+  seed: 20260903
+  warmstart_model: outputs/contact_ar_success_k128_epsilonauc_fullpc_norm_warmk32_gb768_64k_8x4090/model/checkpoints/step_00064000.pt
+  resume: null

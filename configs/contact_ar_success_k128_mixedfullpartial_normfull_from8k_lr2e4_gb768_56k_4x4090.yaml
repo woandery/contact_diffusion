@@ -1,0 +1,21 @@
+base_config: contact_ar_success_k128_mixedfullpartial_normfull_warmpartial64_gb768_64k_4x4090.yaml
+
+train:
+  # Recover from the last finite model state.  This is deliberately a model
+  # warm start rather than resume, so AdamW moments and the cosine scheduler
+  # are reset after the non-finite failure in the previous stage.
+  output_dir: outputs/contact_ar_success_k128_mixedfullpartial_normfull_from8k_lr2e4_gb768_56k_4x4090/model
+  warmstart_model: outputs/contact_ar_success_k128_mixedfullpartial_normfull_warmpartial64_gb768_64k_4x4090/model/checkpoints/step_00008000.pt
+  resume: null
+
+  batch_size: 192
+  gradient_accumulation_steps: 1
+  # The source checkpoint already contains 8k updates; 56k new updates keep
+  # the originally requested total exposure at 64k.
+  max_steps: 56000
+  lr: 0.0002
+  lr_scheduler: cosine
+  min_lr_ratio: 0.2
+  val_every: 8000
+  save_every: 8000
+  seed: 20260905

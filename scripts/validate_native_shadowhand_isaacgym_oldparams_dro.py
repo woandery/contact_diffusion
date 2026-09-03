@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
+from scipy.spatial import cKDTree
 import trimesh
 from isaacgym import gymapi, gymtorch, gymutil
 import torch
@@ -34,6 +35,7 @@ from utils.basic_experiment_protocol import (
     project_world_points_to_camera,
     transform_object_points,
 )
+from utils.contact_aware_closure import shadowhand_finger_groups
 
 
 DIRECTIONS_GENDEX = (
@@ -80,6 +82,14 @@ CONTACT_COLORS_RGB = (
     (0.90, 0.16, 0.90),
     (0.16, 0.86, 0.90),
 )
+SHADOW_SURFACE_SYNC_DOF_NAMES = {
+    "FFJ3", "FFJ2", "FFJ1",
+    "MFJ3", "MFJ2", "MFJ1",
+    "RFJ3", "RFJ2", "RFJ1",
+    "LFJ5", "LFJ3", "LFJ2", "LFJ1",
+    "THJ4", "THJ2", "THJ1",
+}
+HAND_OBJECT_COLLISION_DISABLE_BIT = 1 << 29
 
 
 def sha256(path: Path) -> str:
@@ -135,6 +145,17 @@ def validate_frozen_basic_protocol(
         # hold to both arms.  All other frozen execution parameters remain
         # protected by this drift check.
         expected["inner_hold_steps"] = args.inner_hold_steps
+    if args.contact_aware_closure:
+        # This explicit experimental branch changes only the closure controller
+        # and its solver support. Generation, selection, disturbance and success
+        # criteria remain frozen and comparable.
+        expected["closure_trajectory"] = args.closure_trajectory
+        expected["solver_velocity_iterations"] = args.solver_velocity_iterations
+    if args.surface_sync_closure or args.experimental_low_contact_offset:
+        # Explicit experimental controller: only the collision envelope is
+        # changed from the frozen O10/I20 execution profile.  The generated
+        # pose, object dynamics, friction and disturbance test stay identical.
+        expected["contact_offset"] = 0.0005
     drift = {}
     for name, wanted in expected.items():
         actual = getattr(args, name)
@@ -242,6 +263,14 @@ def parse_args() -> argparse.Namespace:
             "graphics device for native Isaac Gym video capture."
         ),
     )
+    parser.add_argument(
+        "--cpu-tensor-pipeline",
+        action="store_true",
+        help=(
+            "Keep PhysX on GPU but expose simulation tensors and exact rigid "
+            "contact-pair queries through the CPU pipeline."
+        ),
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--only-object", action="append")
     parser.add_argument(
@@ -297,6 +326,29 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Zero-based selected-sample index tracked by the GUI camera.",
+    )
+    parser.add_argument(
+        "--viewer-camera-follow-mode",
+        choices=("translation", "pose"),
+        default="pose",
+        help=(
+            "Follow only object translation for a stable world-oriented view, "
+            "or inherit object rotation as in the legacy object-frame camera."
+        ),
+    )
+    parser.add_argument(
+        "--viewer-show-reference-grid",
+        action="store_true",
+        help="Draw a non-physical world-frame floor grid for visual reference.",
+    )
+    parser.add_argument(
+        "--viewer-final-hold-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Keep rendering the final state for this many wall-clock seconds "
+            "without advancing physics."
+        ),
     )
     parser.add_argument(
         "--asset-profile",
@@ -374,6 +426,153 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--contact-aware-closure",
+        action="store_true",
+        help=(
+            "Experimental ShadowHand controller: while the object is fixed, "
+            "freeze each digit independently after confirmed rigid-body contact."
+        ),
+    )
+    parser.add_argument(
+        "--surface-sync-closure",
+        action="store_true",
+        help=(
+            "Experimental mesh-surface controller that derives an open start from "
+            "q_contact and joint limits, stops each calibrated pad 1 mm above the object, "
+            "then advances all five digits simultaneously until pad contact. "
+            "Prepared outer/inner joint targets are not used."
+        ),
+    )
+    parser.add_argument(
+        "--surface-fixed-approach",
+        action="store_true",
+        help=(
+            "Stage the surface-sync 1 mm waiting pose against a fixed copy of "
+            "the object, then atomically release a zero-velocity dynamic copy "
+            "before synchronized closure."
+        ),
+    )
+    parser.add_argument(
+        "--surface-normal-target-closure",
+        action="store_true",
+        help=(
+            "Track each assigned contact point plus its 1 mm outward normal "
+            "during staging, then close along the assigned inward normal with "
+            "a damped least-squares distal-pad Jacobian controller."
+        ),
+    )
+    parser.add_argument(
+        "--surface-normal-approach-speed-m-s", type=float, default=0.02
+    )
+    parser.add_argument(
+        "--surface-normal-close-speed-m-s", type=float, default=0.005
+    )
+    parser.add_argument(
+        "--surface-normal-position-tolerance-m", type=float, default=0.0015
+    )
+    parser.add_argument(
+        "--surface-normal-damping", type=float, default=0.01
+    )
+    parser.add_argument(
+        "--surface-ready-clearance-m",
+        type=float,
+        default=0.001,
+        help="Pad-to-sphere clearance at which a digit waits for the others.",
+    )
+    parser.add_argument(
+        "--surface-sync-pad-samples",
+        type=Path,
+        default=Path(
+            "outputs/shadowhand_pad_pointcloud/"
+            "shadowhand_pad_samples_local.json"
+        ),
+        help=(
+            "Calibrated pad-only samples expressed in each distal link frame."
+        ),
+    )
+    parser.add_argument(
+        "--surface-sync-mesh-samples",
+        type=int,
+        default=100000,
+        help=(
+            "Deterministic collision-mesh surface samples used by the arbitrary-"
+            "object nearest-surface query."
+        ),
+    )
+    parser.add_argument(
+        "--surface-ready-penetration-tolerance-m",
+        type=float,
+        default=0.001,
+        help="Largest pad overshoot still accepted as a valid ready state.",
+    )
+    parser.add_argument(
+        "--surface-ready-braking-margin-m",
+        type=float,
+        default=0.0005,
+        help=(
+            "Begin braking this far outside the desired waiting clearance to "
+            "compensate position-servo tracking lag."
+        ),
+    )
+    parser.add_argument(
+        "--surface-sync-approach-steps",
+        type=int,
+        default=500,
+        help="Maximum independent pad-approach control frames.",
+    )
+    parser.add_argument(
+        "--surface-sync-start-open-rad",
+        type=float,
+        default=10.0,
+        help=(
+            "Derive the pregrasp by subtracting this angle from each active "
+            "q_contact flexion DOF, clamped at its URDF open limit. The default "
+            "therefore starts every active flexion DOF at its open limit."
+        ),
+    )
+    parser.add_argument(
+        "--surface-sync-joint-speed-rad-s",
+        type=float,
+        default=0.25,
+        help="Commanded closing speed for active flexion joints.",
+    )
+    parser.add_argument(
+        "--surface-sync-preload-rad",
+        type=float,
+        default=0.01,
+        help="Additional closing command after confirmed distal contact.",
+    )
+    parser.add_argument(
+        "--surface-sync-max-closure-displacement-m",
+        type=float,
+        default=0.005,
+        help="Closure displacement above which the ball is classified as pushed.",
+    )
+    parser.add_argument(
+        "--contact-stop-force-threshold",
+        type=float,
+        default=0.1,
+        help="Per-digit net rigid-body contact-force threshold in newtons.",
+    )
+    parser.add_argument(
+        "--contact-confirm-steps",
+        type=int,
+        default=2,
+        help="Consecutive contact frames required before freezing a digit.",
+    )
+    parser.add_argument(
+        "--contact-preload-fraction",
+        type=float,
+        default=0.01,
+        help="Extra fraction of the outer-to-inner digit motion after contact.",
+    )
+    parser.add_argument(
+        "--pre-release-hold-steps",
+        type=int,
+        default=0,
+        help="Hold contact-aware targets against the fixed object before release.",
+    )
+    parser.add_argument(
         "--closure-telemetry-dir",
         type=Path,
         help=(
@@ -398,11 +597,29 @@ def parse_args() -> argparse.Namespace:
             "physics prescreen. Omit for the formal six-direction evaluation."
         ),
     )
+    parser.add_argument(
+        "--only-direction",
+        choices=("+x", "-x", "+y", "-y", "+z", "-z"),
+        help=(
+            "Run exactly one named world-frame disturbance direction. This is "
+            "an explicit directional diagnostic, not the formal six-direction "
+            "evaluation."
+        ),
+    )
     parser.add_argument("--success-mode", choices=("final", "per_direction"), default="per_direction")
     parser.add_argument("--threshold", type=float, default=0.02)
     parser.add_argument("--acceleration", type=float, default=0.5)
     parser.add_argument("--robot-friction", type=float, default=10.0)
     parser.add_argument("--object-friction", type=float, default=10.0)
+    parser.add_argument(
+        "--disable-hand-object-collision-body-prefix",
+        action="append",
+        default=[],
+        help=(
+            "Disable collisions between object shapes and hand rigid bodies "
+            "whose names begin with this prefix. May be repeated."
+        ),
+    )
     parser.add_argument("--object-density", type=float, default=10000.0)
     parser.add_argument(
         "--hand-density",
@@ -453,6 +670,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--solver-position-iterations", type=int, default=4)
     parser.add_argument("--solver-velocity-iterations", type=int, default=0)
     parser.add_argument("--contact-offset", type=float, default=0.01)
+    parser.add_argument(
+        "--experimental-low-contact-offset",
+        action="store_true",
+        help=(
+            "Permit the explicit 0.5 mm PhysX contact envelope in a standard-"
+            "closure control arm, so it can be compared with surface-sync "
+            "without collision-envelope drift."
+        ),
+    )
     parser.add_argument("--rest-offset", type=float, default=0.0)
     parser.add_argument("--no-ground", action="store_true")
     parser.add_argument(
@@ -482,9 +708,34 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Record one native Isaac Gym RGB MP4 for every selected trial.",
     )
+    parser.add_argument(
+        "--video-focus-sample",
+        type=int,
+        help=(
+            "Record only this zero-based slot in the selected sample window "
+            "while still simulating every environment. This preserves the "
+            "full fixed-layout PhysX batch for exact visual replays."
+        ),
+    )
     parser.add_argument("--video-fps", type=float, default=20.0)
     parser.add_argument("--video-width", type=int, default=640)
     parser.add_argument("--video-height", type=int, default=360)
+    parser.add_argument(
+        "--video-camera-eye",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        default=(0.32, 0.30, 0.23),
+        help="World-space camera position used by recorded RGB videos.",
+    )
+    parser.add_argument(
+        "--video-camera-target",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        default=(0.0, 0.0, 0.0),
+        help="World-space camera look-at target used by recorded RGB videos.",
+    )
     parser.add_argument(
         "--video-show-diffusion-contacts",
         action="store_true",
@@ -519,6 +770,16 @@ def parse_args() -> argparse.Namespace:
         help="Override object visual color during video capture.",
     )
     parser.add_argument(
+        "--video-background-color",
+        type=float,
+        nargs=3,
+        metavar=("R", "G", "B"),
+        help=(
+            "Replace camera pixels with no rendered geometry by this RGB "
+            "color. This is a rendering-only aid for videos recorded without ground."
+        ),
+    )
+    parser.add_argument(
         "--video-stride",
         type=int,
         default=4,
@@ -529,6 +790,14 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Record rigid-body trajectories for model-based offline rendering.",
     )
+    parser.add_argument(
+        "--state-focus-sample",
+        type=int,
+        help=(
+            "Record rigid-body states only for this zero-based slot while "
+            "still simulating the complete selected environment window."
+        ),
+    )
     parser.add_argument("--state-stride", type=int, default=4)
     args = parser.parse_args()
     if args.viewer_show_diffusion_contacts and not args.viewer:
@@ -537,10 +806,91 @@ def parse_args() -> argparse.Namespace:
         parser.error("--viewer-contact-radius-m must be positive")
     if args.viewer_focus_sample < 0:
         parser.error("--viewer-focus-sample must be non-negative")
+    if args.viewer_final_hold_seconds < 0.0:
+        parser.error("--viewer-final-hold-seconds must be non-negative")
+    if args.video_focus_sample is not None and args.video_focus_sample < 0:
+        parser.error("--video-focus-sample must be non-negative")
+    for name, color in (
+        ("video-hand-color", args.video_hand_color),
+        ("video-object-color", args.video_object_color),
+        ("video-background-color", args.video_background_color),
+    ):
+        if color is not None and any(not 0.0 <= value <= 1.0 for value in color):
+            parser.error(f"--{name} components must be in [0, 1]")
+    if args.state_focus_sample is not None and args.state_focus_sample < 0:
+        parser.error("--state-focus-sample must be non-negative")
     if args.contact_impulse_epsilon < 0.0:
         parser.error("--contact-impulse-epsilon must be non-negative")
     if args.closure_object_mode != "dynamic" and not args.closure_ab_experiment:
         parser.error("fixed_until_inner requires --closure-ab-experiment")
+    if args.contact_aware_closure:
+        if args.closure_object_mode != "fixed_until_inner":
+            parser.error(
+                "--contact-aware-closure requires "
+                "--closure-object-mode fixed_until_inner"
+            )
+        if not args.closure_ab_experiment:
+            parser.error("--contact-aware-closure requires --closure-ab-experiment")
+        if args.closure_trajectory == "step":
+            parser.error("--contact-aware-closure requires linear or smoothstep closure")
+    if args.surface_sync_closure:
+        if args.contact_aware_closure:
+            parser.error(
+                "--surface-sync-closure and --contact-aware-closure are exclusive"
+            )
+        if args.closure_object_mode != "dynamic":
+            parser.error("--surface-sync-closure requires a dynamic object")
+        if args.surface_ready_clearance_m <= 0.0:
+            parser.error("--surface-ready-clearance-m must be positive")
+        if args.surface_ready_penetration_tolerance_m < 0.0:
+            parser.error(
+                "--surface-ready-penetration-tolerance-m must be non-negative"
+            )
+        if args.surface_ready_braking_margin_m < 0.0:
+            parser.error("--surface-ready-braking-margin-m must be non-negative")
+        if args.surface_sync_approach_steps < 1:
+            parser.error("--surface-sync-approach-steps must be positive")
+        if args.surface_sync_mesh_samples < 1000:
+            parser.error("--surface-sync-mesh-samples must be at least 1000")
+        if args.surface_sync_start_open_rad <= 0.0:
+            parser.error("--surface-sync-start-open-rad must be positive")
+        if args.surface_sync_joint_speed_rad_s <= 0.0:
+            parser.error("--surface-sync-joint-speed-rad-s must be positive")
+        if args.surface_sync_preload_rad < 0.0:
+            parser.error("--surface-sync-preload-rad must be non-negative")
+        if args.surface_sync_max_closure_displacement_m <= 0.0:
+            parser.error(
+                "--surface-sync-max-closure-displacement-m must be positive"
+            )
+    if args.surface_fixed_approach and not args.surface_sync_closure:
+        parser.error("--surface-fixed-approach requires --surface-sync-closure")
+    if args.surface_normal_target_closure:
+        if not args.surface_sync_closure:
+            parser.error(
+                "--surface-normal-target-closure requires --surface-sync-closure"
+            )
+        if not args.surface_fixed_approach:
+            parser.error(
+                "--surface-normal-target-closure requires --surface-fixed-approach"
+            )
+    if args.surface_normal_approach_speed_m_s <= 0.0:
+        parser.error("--surface-normal-approach-speed-m-s must be positive")
+    if args.surface_normal_close_speed_m_s <= 0.0:
+        parser.error("--surface-normal-close-speed-m-s must be positive")
+    if args.surface_normal_position_tolerance_m <= 0.0:
+        parser.error("--surface-normal-position-tolerance-m must be positive")
+    if args.surface_normal_damping <= 0.0:
+        parser.error("--surface-normal-damping must be positive")
+    if args.contact_stop_force_threshold <= 0.0:
+        parser.error("--contact-stop-force-threshold must be positive")
+    if args.contact_confirm_steps < 1:
+        parser.error("--contact-confirm-steps must be positive")
+    if not 0.0 <= args.contact_preload_fraction <= 1.0:
+        parser.error("--contact-preload-fraction must be in [0, 1]")
+    if args.pre_release_hold_steps < 0:
+        parser.error("--pre-release-hold-steps must be non-negative")
+    if args.only_direction is not None and args.max_directions is not None:
+        parser.error("--only-direction cannot be combined with --max-directions")
     return args
 
 
@@ -588,13 +938,19 @@ def make_sim(gym, args: argparse.Namespace):
     params.physx.use_gpu = not args.cpu_physics
     params.physx.num_subscenes = 0
     params.physx.max_gpu_contact_pairs = 8 * 1024 * 1024
-    if args.closure_telemetry_dir is not None:
+    if (
+        args.closure_telemetry_dir is not None
+        or args.contact_aware_closure
+        or args.surface_sync_closure
+    ):
         # Preserve every substep contact so the per-frame sum below represents
         # the complete normal impulse delivered during one control frame.
         params.physx.contact_collection = (
             gymapi.ContactCollection.CC_ALL_SUBSTEPS
         )
-    params.use_gpu_pipeline = not args.cpu_physics
+    params.use_gpu_pipeline = not (
+        args.cpu_physics or args.cpu_tensor_pipeline
+    )
     graphics_device = (
         args.device_id if args.video_dir is not None or args.viewer else -1
     )
@@ -613,6 +969,22 @@ def make_sim(gym, args: argparse.Namespace):
         plane.static_friction = 0.1
         plane.dynamic_friction = 0.1
         gym.add_ground(sim, plane)
+    if args.viewer or args.video_dir is not None:
+        # Rendering-only fill lights. They do not modify contact dynamics.
+        gym.set_light_parameters(
+            sim,
+            0,
+            gymapi.Vec3(1.0, 0.98, 0.95),
+            gymapi.Vec3(0.55, 0.58, 0.62),
+            gymapi.Vec3(-1.0, -1.0, -2.0),
+        )
+        gym.set_light_parameters(
+            sim,
+            1,
+            gymapi.Vec3(0.55, 0.60, 0.70),
+            gymapi.Vec3(0.25, 0.28, 0.32),
+            gymapi.Vec3(1.0, 0.5, 1.0),
+        )
     return sim
 
 
@@ -880,6 +1252,34 @@ def validate_object(
     count = len(samples)
     if not count:
         return []
+    if args.video_focus_sample is not None and args.video_focus_sample >= count:
+        raise ValueError(
+            f"--video-focus-sample={args.video_focus_sample} is outside the "
+            f"selected sample window of length {count}"
+        )
+    if args.state_focus_sample is not None and args.state_focus_sample >= count:
+        raise ValueError(
+            f"--state-focus-sample={args.state_focus_sample} is outside the "
+            f"selected sample window of length {count}"
+        )
+    video_indices = (
+        set(range(count))
+        if args.video_dir is not None and args.video_focus_sample is None
+        else (
+            {int(args.video_focus_sample)}
+            if args.video_dir is not None
+            else set()
+        )
+    )
+    state_indices = (
+        set(range(count))
+        if args.state_dir is not None and args.state_focus_sample is None
+        else (
+            {int(args.state_focus_sample)}
+            if args.state_dir is not None
+            else set()
+        )
+    )
 
     sim = make_sim(gym, args)
     viewer = None
@@ -942,6 +1342,10 @@ def validate_object(
             object_file,
             object_asset_options(args, fixed_base=False),
         )
+        use_fixed_approach_actor = (
+            args.closure_object_mode == "fixed_until_inner"
+            or (args.surface_sync_closure and args.surface_fixed_approach)
+        )
         closure_object_asset = (
             gym.load_asset(
                 sim,
@@ -949,9 +1353,34 @@ def validate_object(
                 object_file,
                 object_asset_options(args, fixed_base=True),
             )
-            if args.closure_object_mode == "fixed_until_inner"
+            if use_fixed_approach_actor
             else object_asset
         )
+        surface_mesh_tree = None
+        surface_mesh_points = None
+        surface_mesh_normals = None
+        if args.surface_sync_closure:
+            collision_mesh_path = (
+                object_root / dataset / short_name / "coacd_allinone.obj"
+            ).resolve()
+            if not collision_mesh_path.is_file():
+                raise FileNotFoundError(collision_mesh_path)
+            collision_geometry = trimesh.load(
+                collision_mesh_path, force="mesh", process=False
+            )
+            surface_mesh_points, sampled_faces = trimesh.sample.sample_surface(
+                collision_geometry,
+                int(args.surface_sync_mesh_samples),
+                seed=20260826,
+            )
+            surface_mesh_points = np.asarray(
+                surface_mesh_points, dtype=np.float64
+            )
+            surface_mesh_normals = np.asarray(
+                collision_geometry.face_normals[sampled_faces],
+                dtype=np.float64,
+            )
+            surface_mesh_tree = cKDTree(surface_mesh_points)
         hand_dof_names = list(gym.get_asset_dof_names(hand_asset))
         source_joint_names = list(object_group["_joint_names"])
         if set(hand_dof_names) != set(source_joint_names):
@@ -1021,7 +1450,7 @@ def validate_object(
         if per_row < 1:
             raise ValueError("--envs-per-row must be positive")
         envs = []
-        camera_handles = []
+        camera_handles = {}
         object_actor_indices = []
         object_body_indices = []
         object_handles = []
@@ -1031,22 +1460,65 @@ def validate_object(
         hand_body_indices_by_env = []
         recorded_body_indices = []
         diffusion_contacts = []
+        sphere_radii = []
         outer_targets = []
         inner_targets = []
+        contact_targets = []
+        assigned_target_points = []
+        assigned_target_normals = []
         for env_index, sample in enumerate(samples):
             env = gym.create_env(sim, lower, upper, per_row)
             envs.append(env)
-            outer = np.asarray(sample["outer_q_euler"], dtype=np.float32)
-            inner = np.asarray(sample["inner_q_euler"], dtype=np.float32)
+            if args.surface_sync_closure:
+                contact = np.asarray(
+                    sample["q_contact_euler"], dtype=np.float32
+                )
+                outer = contact
+                inner = contact
+            else:
+                outer = np.asarray(sample["outer_q_euler"], dtype=np.float32)
+                inner = np.asarray(sample["inner_q_euler"], dtype=np.float32)
             hand_pose = gymapi.Transform()
             hand_actor = gym.create_actor(
-                env, hand_asset, hand_pose, "native_hand", env_index, 0, 0
+                env,
+                hand_asset,
+                hand_pose,
+                "native_hand",
+                env_index,
+                1
+                if args.contact_aware_closure or args.surface_sync_closure
+                else 0,
+                0,
             )
             gym.set_actor_dof_properties(env, hand_actor, dof_props)
             hand_shapes = gym.get_actor_rigid_shape_properties(env, hand_actor)
             for shape in hand_shapes:
                 shape.friction = args.robot_friction
                 shape.restitution = 0.0
+            disabled_body_prefixes = tuple(
+                prefix.lower()
+                for prefix in args.disable_hand_object_collision_body_prefix
+            )
+            if disabled_body_prefixes:
+                hand_body_names_for_filter = list(
+                    gym.get_asset_rigid_body_names(hand_asset)
+                )
+                shape_ranges = gym.get_actor_rigid_body_shape_indices(
+                    env, hand_actor
+                )
+                for body_index, body_name in enumerate(
+                    hand_body_names_for_filter
+                ):
+                    if not body_name.lower().startswith(disabled_body_prefixes):
+                        continue
+                    shape_range = shape_ranges[body_index]
+                    for shape_index in range(
+                        int(shape_range.start),
+                        int(shape_range.start + shape_range.count),
+                    ):
+                        hand_shapes[shape_index].filter |= (
+                            HAND_OBJECT_COLLISION_DISABLE_BIT
+                        )
             gym.set_actor_rigid_shape_properties(env, hand_actor, hand_shapes)
             if args.video_hand_color is not None:
                 hand_color = gymapi.Vec3(*args.video_hand_color)
@@ -1062,16 +1534,30 @@ def validate_object(
                     )
             outer_target = outer[reorder].copy()
             inner_target = inner[reorder].copy()
-            closing_delta = inner_target - outer_target
-            closing_mask = np.abs(closing_delta) > 1.0e-7
-            open_limit = np.where(closing_delta > 0.0, dof_lower, dof_upper)
-            close_limit = np.where(closing_delta > 0.0, dof_upper, dof_lower)
-            outer_target[closing_mask] += args.pregrasp_open_fraction * (
-                open_limit[closing_mask] - outer_target[closing_mask]
-            )
-            inner_target[closing_mask] += args.closure_overdrive_fraction * (
-                close_limit[closing_mask] - inner_target[closing_mask]
-            )
+            contact_target = contact[reorder].copy() if args.surface_sync_closure else None
+            if args.surface_sync_closure:
+                # Preserve the optimized root pose and ab/adduction joints, but
+                # derive the flexion start entirely from the URDF open limits.
+                # This branch intentionally does not consume prepared O10/I20.
+                for dof_index, dof_name in enumerate(hand_dof_names):
+                    if dof_name in SHADOW_SURFACE_SYNC_DOF_NAMES:
+                        outer_target[dof_index] = max(
+                            float(dof_lower[dof_index]),
+                            float(outer_target[dof_index])
+                            - float(args.surface_sync_start_open_rad),
+                        )
+                        inner_target[dof_index] = dof_upper[dof_index]
+            else:
+                closing_delta = inner_target - outer_target
+                closing_mask = np.abs(closing_delta) > 1.0e-7
+                open_limit = np.where(closing_delta > 0.0, dof_lower, dof_upper)
+                close_limit = np.where(closing_delta > 0.0, dof_upper, dof_lower)
+                outer_target[closing_mask] += args.pregrasp_open_fraction * (
+                    open_limit[closing_mask] - outer_target[closing_mask]
+                )
+                inner_target[closing_mask] += args.closure_overdrive_fraction * (
+                    close_limit[closing_mask] - inner_target[closing_mask]
+                )
             dof_state = np.zeros(dof_count, dtype=gymapi.DofState.dtype)
             dof_state["pos"] = outer_target
             gym.set_actor_dof_states(env, hand_actor, dof_state, gymapi.STATE_ALL)
@@ -1086,7 +1572,7 @@ def validate_object(
 
             object_pose = gymapi.Transform()
             closure_object_actor = None
-            if args.closure_object_mode == "fixed_until_inner":
+            if use_fixed_approach_actor:
                 closure_object_actor = gym.create_actor(
                     env,
                     closure_object_asset,
@@ -1102,6 +1588,8 @@ def validate_object(
                 for shape in closure_object_shapes:
                     shape.friction = args.object_friction
                     shape.restitution = 0.0
+                    if disabled_body_prefixes:
+                        shape.filter |= HAND_OBJECT_COLLISION_DISABLE_BIT
                 gym.set_actor_rigid_shape_properties(
                     env, closure_object_actor, closure_object_shapes
                 )
@@ -1122,6 +1610,8 @@ def validate_object(
             for shape in object_shapes:
                 shape.friction = args.object_friction
                 shape.restitution = 0.0
+                if disabled_body_prefixes:
+                    shape.filter |= HAND_OBJECT_COLLISION_DISABLE_BIT
             gym.set_actor_rigid_shape_properties(env, object_actor, object_shapes)
             if args.video_object_color is not None:
                 object_color = gymapi.Vec3(*args.video_object_color)
@@ -1180,9 +1670,44 @@ def validate_object(
                     "diffusion_target_contacts_object"
                 )
             diffusion_contacts.append(contacts)
+            contact_radii = np.linalg.norm(contacts, axis=1)
+            if args.surface_sync_closure and (
+                len(contact_radii) != 5
+                or not np.isfinite(contact_radii).all()
+                or float(np.median(contact_radii)) <= 0.0
+            ):
+                raise ValueError(
+                    f"{object_name}:{sample['source_index']} has invalid "
+                    "baseball surface contacts"
+                )
+            sphere_radii.append(float(np.median(contact_radii)))
             outer_targets.append(outer_target)
             inner_targets.append(inner_target)
-            if args.video_dir is not None:
+            if args.surface_sync_closure:
+                contact_targets.append(contact_target)
+            if args.surface_normal_target_closure:
+                target_points = np.asarray(
+                    sample.get("fk_matched_target_points_object"),
+                    dtype=np.float32,
+                )
+                target_normals = np.asarray(
+                    sample.get("fk_matched_target_normals_object"),
+                    dtype=np.float32,
+                )
+                if target_points.shape != (5, 3) or target_normals.shape != (5, 3):
+                    raise ValueError(
+                        f"{object_name}:{sample['source_index']} lacks five "
+                        "assigned target points/normals"
+                    )
+                target_norm = np.linalg.norm(target_normals, axis=1, keepdims=True)
+                if not np.isfinite(target_normals).all() or np.any(target_norm <= 1e-8):
+                    raise ValueError(
+                        f"{object_name}:{sample['source_index']} has invalid "
+                        "assigned target normals"
+                    )
+                assigned_target_points.append(target_points)
+                assigned_target_normals.append(target_normals / target_norm)
+            if env_index in video_indices:
                 camera_properties = gymapi.CameraProperties()
                 camera_properties.width = args.video_width
                 camera_properties.height = args.video_height
@@ -1191,10 +1716,10 @@ def validate_object(
                 gym.set_camera_location(
                     camera,
                     env,
-                    gymapi.Vec3(0.32, 0.30, 0.23),
-                    gymapi.Vec3(0.0, 0.0, 0.0),
+                    gymapi.Vec3(*args.video_camera_eye),
+                    gymapi.Vec3(*args.video_camera_target),
                 )
-                camera_handles.append(camera)
+                camera_handles[env_index] = camera
 
         gym.prepare_sim(sim)
         if args.viewer:
@@ -1227,7 +1752,8 @@ def validate_object(
             for key, action in viewer_actions:
                 gym.subscribe_viewer_keyboard_event(viewer, key, action)
             print(
-                "Object camera: WASD orbit, Q/E zoom, 0 oblique, "
+                f"Tracking camera ({args.viewer_camera_follow_mode} follow): "
+                "WASD orbit, Q/E zoom, 0 oblique, "
                 "1..5 axis views, [/] sample, C lock/free.",
                 flush=True,
             )
@@ -1240,13 +1766,33 @@ def validate_object(
             )
             for color in CONTACT_COLORS_RGB
         ]
-        video_writers = []
+        grid_vertices = None
+        grid_colors = None
+        if args.viewer_show_reference_grid:
+            grid_lines = []
+            for coordinate in np.linspace(-0.30, 0.30, 13):
+                grid_lines.append(
+                    [[-0.30, float(coordinate), -0.12],
+                     [0.30, float(coordinate), -0.12]]
+                )
+                grid_lines.append(
+                    [[float(coordinate), -0.30, -0.12],
+                     [float(coordinate), 0.30, -0.12]]
+                )
+            grid_vertices = np.asarray(
+                grid_lines, dtype=np.float32
+            ).reshape(-1, 3)
+            grid_colors = np.full(
+                (len(grid_lines), 3), (0.32, 0.38, 0.46), dtype=np.float32
+            )
+        video_writers = {}
         video_frame_counts = [0] * count
         if args.video_dir is not None:
             import cv2
 
             args.video_dir.mkdir(parents=True, exist_ok=True)
-            for sample in samples:
+            for index in sorted(video_indices):
+                sample = samples[index]
                 video_path = args.video_dir / (
                     f"{sample_artifact_stem(object_name, sample)}.mp4"
                 )
@@ -1258,7 +1804,7 @@ def validate_object(
                 )
                 if not writer.isOpened():
                     raise RuntimeError(f"Could not create {video_path}")
-                video_writers.append(writer)
+                video_writers[index] = writer
 
         def capture_videos(phase: str, force: bool = False) -> None:
             if not video_writers:
@@ -1279,9 +1825,11 @@ def validate_object(
                 tuple(round(255 * channel) for channel in color[::-1])
                 for color in CONTACT_COLORS_RGB
             )
-            for index, (env, camera, writer, sample) in enumerate(
-                zip(envs, camera_handles, video_writers, samples)
-            ):
+            for index in sorted(video_writers):
+                env = envs[index]
+                camera = camera_handles[index]
+                writer = video_writers[index]
+                sample = samples[index]
                 rgba = gym.get_camera_image(
                     sim, env, camera, gymapi.IMAGE_COLOR
                 )
@@ -1289,6 +1837,20 @@ def validate_object(
                     args.video_height, args.video_width, 4
                 )
                 frame = np.ascontiguousarray(rgba[:, :, :3][:, :, ::-1])
+                if args.video_background_color is not None:
+                    depth = gym.get_camera_image(
+                        sim, env, camera, gymapi.IMAGE_DEPTH
+                    )
+                    depth = np.asarray(depth).reshape(
+                        args.video_height, args.video_width
+                    )
+                    background = ~np.isfinite(depth) | (depth < -1.0e4)
+                    background_bgr = np.rint(
+                        255.0 * np.asarray(
+                            args.video_background_color[::-1], dtype=np.float32
+                        )
+                    ).astype(np.uint8)
+                    frame[background] = background_bgr
                 if object_states is not None:
                     state = object_states[index]
                     world_contacts = transform_object_points(
@@ -1376,12 +1938,24 @@ def validate_object(
 
         capture_videos.physics_step = 0
         device = torch.device(
-            "cpu" if args.cpu_physics else f"cuda:{args.device_id}"
+            "cpu"
+            if args.cpu_physics or args.cpu_tensor_pipeline
+            else f"cuda:{args.device_id}"
         )
         root = gymtorch.wrap_tensor(gym.acquire_actor_root_state_tensor(sim))
         rigid = gymtorch.wrap_tensor(gym.acquire_rigid_body_state_tensor(sim))
+        dof_state_tensor = gymtorch.wrap_tensor(
+            gym.acquire_dof_state_tensor(sim)
+        )
         net_contact_force = gymtorch.wrap_tensor(
             gym.acquire_net_contact_force_tensor(sim)
+        )
+        hand_jacobian = (
+            gymtorch.wrap_tensor(
+                gym.acquire_jacobian_tensor(sim, "native_hand")
+            )
+            if args.surface_normal_target_closure
+            else None
         )
         object_actor_indices_t = torch.as_tensor(
             object_actor_indices, device=device, dtype=torch.long
@@ -1433,7 +2007,11 @@ def validate_object(
                 action = event.action
                 if action == "camera_toggle_lock":
                     camera_state["locked"] = not camera_state["locked"]
-                    mode = "object coordinates" if camera_state["locked"] else "free mouse"
+                    mode = (
+                        f"object {args.viewer_camera_follow_mode} follow"
+                        if camera_state["locked"]
+                        else "free mouse"
+                    )
                     print(f"Viewer camera mode: {mode}", flush=True)
                 elif action == "camera_orbit_left":
                     camera_state["yaw"] += angle_step
@@ -1499,9 +2077,12 @@ def validate_object(
                 ]],
                 dtype=np.float64,
             )
-            eye = transform_object_points(
-                local_eye, state[:3], state[3:7]
-            )[0]
+            if args.viewer_camera_follow_mode == "pose":
+                eye = transform_object_points(
+                    local_eye, state[:3], state[3:7]
+                )[0]
+            else:
+                eye = state[:3] + local_eye[0]
             target = state[:3]
             gym.viewer_camera_look_at(
                 viewer,
@@ -1529,6 +2110,15 @@ def validate_object(
                 root[object_actor_indices_t].detach().cpu().numpy().copy()
             )
             update_object_camera(object_states)
+            if grid_vertices is not None and grid_colors is not None:
+                focus_index = int(camera_state["focus_index"])
+                gym.add_lines(
+                    viewer,
+                    envs[focus_index],
+                    int(grid_colors.shape[0]),
+                    grid_vertices,
+                    grid_colors,
+                )
             if args.viewer_show_diffusion_contacts:
                 for env, contacts, state in zip(
                     envs, diffusion_contacts, object_states
@@ -1566,7 +2156,8 @@ def validate_object(
             if not force and capture_states.physics_step % args.state_stride:
                 return
             gym.refresh_rigid_body_state_tensor(sim)
-            for index, indices in enumerate(recorded_body_indices):
+            for index in sorted(state_indices):
+                indices = recorded_body_indices[index]
                 state_frames[index].append(
                     rigid[indices].detach().cpu().numpy().copy()
                 )
@@ -1687,6 +2278,386 @@ def validate_object(
         inner_targets_tensor = torch.as_tensor(
             np.stack(inner_targets), device=device, dtype=torch.float32
         ).reshape(-1)
+        contact_targets_tensor = (
+            torch.as_tensor(
+                np.stack(contact_targets), device=device, dtype=torch.float32
+            )
+            if args.surface_sync_closure
+            else None
+        )
+        assigned_target_points_t = (
+            torch.as_tensor(
+                np.stack(assigned_target_points),
+                device=device,
+                dtype=torch.float32,
+            )
+            if args.surface_normal_target_closure
+            else None
+        )
+        assigned_target_normals_t = (
+            torch.as_tensor(
+                np.stack(assigned_target_normals),
+                device=device,
+                dtype=torch.float32,
+            )
+            if args.surface_normal_target_closure
+            else None
+        )
+        evaluation_targets_tensor = inner_targets_tensor.clone()
+        contact_groups: list[dict[str, object]] = []
+        contact_steps_tensor = None
+        peak_group_force_tensor = None
+        if args.contact_aware_closure or args.surface_sync_closure:
+            contact_groups = shadowhand_finger_groups(
+                hand_dof_names, hand_body_names
+            )
+            contact_steps_tensor = torch.full(
+                (count, len(contact_groups)),
+                -1,
+                device=device,
+                dtype=torch.int32,
+            )
+            peak_group_force_tensor = torch.zeros(
+                (count, len(contact_groups)),
+                device=device,
+                dtype=torch.float32,
+            )
+        surface_ready_steps_tensor = None
+        surface_pad_clearance_tensor = None
+        surface_initial_pad_clearance_tensor = None
+        surface_ready_pad_clearance_tensor = None
+        surface_min_pad_clearance_tensor = None
+        surface_nonpad_collision_tensor = None
+        surface_severe_overshoot_tensor = None
+        surface_approach_pushed_tensor = None
+        surface_sync_pushed_tensor = None
+        surface_all_ready_tensor = None
+        surface_approach_displacement_tensor = None
+        surface_sync_displacement_tensor = None
+        if args.surface_sync_closure:
+            missing_active = sorted(
+                SHADOW_SURFACE_SYNC_DOF_NAMES - set(hand_dof_names)
+            )
+            if missing_active:
+                raise RuntimeError(
+                    f"Surface-sync hand is missing DOFs: {missing_active}"
+                )
+            body_name_to_index = {
+                name.lower(): index
+                for index, name in enumerate(hand_body_names)
+            }
+            pad_local_body_indices = []
+            for group in contact_groups:
+                distal_name = f"{str(group['name']).lower()}distal"
+                if distal_name not in body_name_to_index:
+                    raise RuntimeError(
+                        f"Surface-sync hand is missing body {distal_name}"
+                    )
+                pad_local_body_indices.append(
+                    body_name_to_index[distal_name]
+                )
+            pad_local_body_indices_t = torch.as_tensor(
+                pad_local_body_indices, device=device, dtype=torch.long
+            )
+            pad_body_indices_t = hand_body_indices_t[
+                :, pad_local_body_indices_t
+            ]
+            pad_samples_path = args.surface_sync_pad_samples.resolve()
+            if not pad_samples_path.is_file():
+                raise FileNotFoundError(pad_samples_path)
+            pad_samples_payload = json.loads(pad_samples_path.read_text())
+            if (
+                pad_samples_payload.get("schema")
+                != "contactdiff-shadowhand-pad-samples-local-v1"
+            ):
+                raise ValueError(
+                    f"Unsupported pad calibration: {pad_samples_path}"
+                )
+            pad_sample_lists = [
+                pad_samples_payload["fingers"][
+                    f"{str(group['name']).lower()}distal"
+                ]["region_points_local_m"]
+                for group in contact_groups
+            ]
+            max_pad_samples = max(len(points) for points in pad_sample_lists)
+            padded_pad_samples = np.zeros(
+                (len(contact_groups), max_pad_samples, 3), dtype=np.float32
+            )
+            valid_pad_samples = np.zeros(
+                (len(contact_groups), max_pad_samples), dtype=bool
+            )
+            for finger_index, points in enumerate(pad_sample_lists):
+                padded_pad_samples[finger_index, : len(points)] = points
+                valid_pad_samples[finger_index, : len(points)] = True
+            pad_samples_t = torch.as_tensor(
+                padded_pad_samples,
+                device=device,
+                dtype=torch.float32,
+            )
+            valid_pad_samples_t = torch.as_tensor(
+                valid_pad_samples, device=device, dtype=torch.bool
+            )
+            if (
+                pad_samples_t.ndim != 3
+                or pad_samples_t.shape[0] != len(contact_groups)
+                or pad_samples_t.shape[2] != 3
+            ):
+                raise ValueError(
+                    f"Invalid local pad sample array in {pad_samples_path}"
+                )
+            surface_ready_steps_tensor = torch.full(
+                (count, len(contact_groups)),
+                -1,
+                device=device,
+                dtype=torch.int32,
+            )
+            surface_pad_clearance_tensor = torch.full(
+                (count, len(contact_groups)),
+                float("inf"),
+                device=device,
+                dtype=torch.float32,
+            )
+            surface_initial_pad_clearance_tensor = torch.full_like(
+                surface_pad_clearance_tensor, float("nan")
+            )
+            surface_ready_pad_clearance_tensor = torch.full_like(
+                surface_pad_clearance_tensor, float("nan")
+            )
+            surface_min_pad_clearance_tensor = torch.full_like(
+                surface_pad_clearance_tensor, float("inf")
+            )
+            surface_nonpad_collision_tensor = torch.zeros(
+                (count, len(contact_groups)), device=device, dtype=torch.bool
+            )
+            surface_severe_overshoot_tensor = torch.zeros(
+                (count, len(contact_groups)), device=device, dtype=torch.bool
+            )
+            surface_approach_pushed_tensor = torch.zeros(
+                count, device=device, dtype=torch.bool
+            )
+            surface_sync_pushed_tensor = torch.zeros(
+                count, device=device, dtype=torch.bool
+            )
+            surface_all_ready_tensor = torch.zeros(
+                count, device=device, dtype=torch.bool
+            )
+            surface_approach_displacement_tensor = torch.zeros(
+                count, device=device, dtype=torch.float32
+            )
+            surface_sync_displacement_tensor = torch.zeros(
+                count, device=device, dtype=torch.float32
+            )
+
+            def surface_pad_world_points() -> torch.Tensor:
+                gym.refresh_rigid_body_state_tensor(sim)
+                pad_states = rigid[pad_body_indices_t]
+                pad_positions = pad_states[:, :, :3]
+                quaternion = pad_states[:, :, 3:7]
+                vector = pad_samples_t.unsqueeze(0).expand(count, -1, -1, -1)
+                xyz = quaternion[:, :, None, :3].expand_as(vector)
+                qw = quaternion[:, :, None, 3:4]
+                twice_cross = 2.0 * torch.cross(xyz, vector, dim=3)
+                rotated = (
+                    vector
+                    + qw * twice_cross
+                    + torch.cross(xyz, twice_cross, dim=3)
+                )
+                return pad_positions[:, :, None, :] + rotated
+
+            def object_assigned_targets_world(
+                actor_indices: torch.Tensor,
+            ) -> tuple[torch.Tensor, torch.Tensor]:
+                gym.refresh_actor_root_state_tensor(sim)
+                states = root[actor_indices]
+                quaternion = states[:, None, 3:7]
+                xyz = quaternion[:, :, :3]
+                qw = quaternion[:, :, 3:4]
+
+                def rotate(vector: torch.Tensor) -> torch.Tensor:
+                    twice_cross = 2.0 * torch.cross(
+                        xyz.expand_as(vector), vector, dim=2
+                    )
+                    return (
+                        vector
+                        + qw * twice_cross
+                        + torch.cross(
+                            xyz.expand_as(vector), twice_cross, dim=2
+                        )
+                    )
+
+                points = (
+                    states[:, None, :3] + rotate(assigned_target_points_t)
+                )
+                normals = torch.nn.functional.normalize(
+                    rotate(assigned_target_normals_t), dim=2
+                )
+                return points, normals
+
+            pad_jacobian_indices_t = None
+            if args.surface_normal_target_closure:
+                if hand_jacobian is None or hand_jacobian.ndim != 4:
+                    raise RuntimeError("Isaac Gym did not expose the hand Jacobian")
+                jacobian_body_offset = (
+                    len(hand_body_names) - int(hand_jacobian.shape[1])
+                )
+                jacobian_indices = [
+                    index - jacobian_body_offset
+                    for index in pad_local_body_indices
+                ]
+                if min(jacobian_indices) < 0 or max(jacobian_indices) >= int(
+                    hand_jacobian.shape[1]
+                ):
+                    raise RuntimeError(
+                        "Distal body indices do not match the Isaac Jacobian"
+                    )
+                pad_jacobian_indices_t = torch.as_tensor(
+                    jacobian_indices, device=device, dtype=torch.long
+                )
+
+            def selected_pad_points(
+                pad_points: torch.Tensor,
+                desired_points: torch.Tensor,
+                locked_indices: torch.Tensor | None = None,
+            ) -> tuple[torch.Tensor, torch.Tensor]:
+                if locked_indices is None:
+                    distances = torch.linalg.norm(
+                        pad_points - desired_points[:, :, None, :], dim=3
+                    )
+                    distances = distances.masked_fill(
+                        ~valid_pad_samples_t.unsqueeze(0), float("inf")
+                    )
+                    indices = distances.argmin(dim=2)
+                else:
+                    indices = locked_indices
+                gather_index = indices[:, :, None, None].expand(-1, -1, 1, 3)
+                points = torch.gather(pad_points, 2, gather_index).squeeze(2)
+                return points, indices
+
+            def apply_pad_cartesian_step(
+                command: torch.Tensor,
+                moving: torch.Tensor,
+                desired_delta: torch.Tensor,
+                control_points: torch.Tensor,
+            ) -> None:
+                gym.refresh_jacobian_tensors(sim)
+                gym.refresh_rigid_body_state_tensor(sim)
+                pad_origins = rigid[pad_body_indices_t, :3]
+                damping_sq = float(args.surface_normal_damping) ** 2
+                identity = torch.eye(3, device=device, dtype=torch.float32)
+                max_joint_step = (
+                    float(args.surface_sync_joint_speed_rad_s)
+                    / float(args.steps_per_second)
+                )
+                for group_index, dof_indices in enumerate(
+                    active_dof_indices_by_group
+                ):
+                    rows = torch.nonzero(
+                        moving[:, group_index], as_tuple=False
+                    ).squeeze(1)
+                    if not bool(rows.numel()):
+                        continue
+                    body_jacobian = hand_jacobian[
+                        rows, pad_jacobian_indices_t[group_index]
+                    ]
+                    offset = (
+                        control_points[rows, group_index]
+                        - pad_origins[rows, group_index]
+                    )
+                    angular_axes = body_jacobian[:, 3:6, :].transpose(1, 2)
+                    point_linear = (
+                        body_jacobian[:, :3, :]
+                        + torch.cross(
+                            angular_axes,
+                            offset[:, None, :].expand_as(angular_axes),
+                            dim=2,
+                        ).transpose(1, 2)
+                    )
+                    active_jacobian = point_linear[:, :, dof_indices]
+                    system = (
+                        active_jacobian @ active_jacobian.transpose(1, 2)
+                        + damping_sq * identity[None, :, :]
+                    )
+                    cartesian = desired_delta[rows, group_index]
+                    solution = torch.linalg.solve(system, cartesian[:, :, None])
+                    delta = (
+                        active_jacobian.transpose(1, 2) @ solution
+                    ).squeeze(2)
+                    delta = delta.clamp(-max_joint_step, max_joint_step)
+                    updated = command[
+                        rows[:, None], dof_indices[None, :]
+                    ] + delta
+                    command[
+                        rows[:, None], dof_indices[None, :]
+                    ] = torch.maximum(
+                        torch.minimum(
+                            updated,
+                            torch.as_tensor(
+                                dof_upper[dof_indices.cpu().numpy()],
+                                device=device,
+                                dtype=torch.float32,
+                            )[None, :],
+                        ),
+                        torch.as_tensor(
+                            dof_lower[dof_indices.cpu().numpy()],
+                            device=device,
+                            dtype=torch.float32,
+                        )[None, :],
+                    )
+
+            def surface_pad_clearances(
+                surface_body_indices: torch.Tensor | None = None,
+            ) -> torch.Tensor:
+                pad_points = surface_pad_world_points()
+                selected_object_body_indices = (
+                    object_body_indices_t
+                    if surface_body_indices is None
+                    else surface_body_indices
+                )
+                object_centers = rigid[selected_object_body_indices, :3]
+                world_radial = (
+                    pad_points - object_centers[:, None, None, :]
+                )
+                object_quaternion = rigid[
+                    selected_object_body_indices, 3:7
+                ]
+                inverse_xyz = -object_quaternion[:, None, None, :3].expand_as(
+                    world_radial
+                )
+                inverse_w = object_quaternion[:, None, None, 3:4]
+                twice_cross_local = 2.0 * torch.cross(
+                    inverse_xyz, world_radial, dim=3
+                )
+                local_radial = (
+                    world_radial
+                    + inverse_w * twice_cross_local
+                    + torch.cross(
+                        inverse_xyz, twice_cross_local, dim=3
+                    )
+                )
+                local_points = local_radial.detach().cpu().numpy().reshape(-1, 3)
+                sampled_distance, nearest = surface_mesh_tree.query(
+                    local_points,
+                    k=1,
+                )
+                nearest_delta = local_points - surface_mesh_points[nearest]
+                nearest_normal = surface_mesh_normals[nearest]
+                outward_sign = np.where(
+                    np.einsum("ij,ij->i", nearest_delta, nearest_normal) >= 0.0,
+                    1.0,
+                    -1.0,
+                )
+                signed_distance_t = torch.as_tensor(
+                    (sampled_distance * outward_sign).reshape(
+                        count, len(contact_groups), pad_samples_t.shape[1]
+                    ),
+                    device=device,
+                    dtype=torch.float32,
+                )
+                clearance = signed_distance_t
+                clearance = clearance.masked_fill(
+                    ~valid_pad_samples_t.unsqueeze(0), float("inf")
+                )
+                return clearance.amin(dim=2)
         gym.set_dof_position_target_tensor(
             sim, gymtorch.unwrap_tensor(dof_targets)
         )
@@ -1710,32 +2681,607 @@ def validate_object(
             capture_closure_telemetry("outer_settle")
         capture_videos("outer_settle", force=True)
         capture_states("outer_settle", force=True)
-        for closure_step in range(args.closure_steps):
-            if args.closure_trajectory == "step":
-                alpha = 1.0
-            else:
-                alpha = float(closure_step + 1) / float(args.closure_steps)
-                if args.closure_trajectory == "smoothstep":
-                    alpha = alpha * alpha * (3.0 - 2.0 * alpha)
-            closure_targets = dof_targets + alpha * (
-                inner_targets_tensor - dof_targets
+        if args.contact_aware_closure:
+            outer_matrix = dof_targets.view(count, dof_count)
+            inner_matrix = inner_targets_tensor.view(count, dof_count)
+            evaluation_matrix = evaluation_targets_tensor.view(count, dof_count)
+            closing_delta_matrix = inner_matrix - outer_matrix
+            stopped_groups = torch.zeros(
+                (count, len(contact_groups)),
+                device=device,
+                dtype=torch.bool,
             )
+            contact_streak = torch.zeros(
+                (count, len(contact_groups)),
+                device=device,
+                dtype=torch.int32,
+            )
+        if args.surface_sync_closure:
+            command_matrix = dof_targets.view(count, dof_count).clone()
+            close_limit_matrix = inner_targets_tensor.view(count, dof_count)
+            active_dof_indices_by_group = []
+            for group in contact_groups:
+                active_dof_indices_by_group.append(
+                    torch.as_tensor(
+                        (
+                            list(group["dof_indices"])
+                            if args.surface_normal_target_closure
+                            else [
+                                index
+                                for index in group["dof_indices"]
+                                if hand_dof_names[index]
+                                in SHADOW_SURFACE_SYNC_DOF_NAMES
+                            ]
+                        ),
+                        device=device,
+                        dtype=torch.long,
+                    )
+                )
+            joint_step = (
+                float(args.surface_sync_joint_speed_rad_s)
+                / float(args.steps_per_second)
+            )
+            approach_start_positions = torch.as_tensor(
+                outer_object_positions, device=device, dtype=torch.float32
+            )
+            ready_mask = torch.zeros(
+                (count, len(contact_groups)), device=device, dtype=torch.bool
+            )
+            normal_selected_pad_indices = torch.zeros(
+                (count, len(contact_groups)), device=device, dtype=torch.long
+            )
+            approach_aborted = torch.zeros(
+                count, device=device, dtype=torch.bool
+            )
+            for approach_step in range(args.surface_sync_approach_steps):
+                if args.surface_normal_target_closure:
+                    target_points_world, target_normals_world = (
+                        object_assigned_targets_world(
+                            closure_object_actor_indices_t
+                        )
+                    )
+                    wait_points = (
+                        target_points_world
+                        + args.surface_ready_clearance_m
+                        * target_normals_world
+                    )
+                    pad_points = surface_pad_world_points()
+                    control_points, current_indices = selected_pad_points(
+                        pad_points, wait_points
+                    )
+                    current_indices = torch.where(
+                        ready_mask,
+                        normal_selected_pad_indices,
+                        current_indices,
+                    )
+                    control_points, _ = selected_pad_points(
+                        pad_points, wait_points, current_indices
+                    )
+                    error = wait_points - control_points
+                    error_norm = torch.linalg.norm(error, dim=2, keepdim=True)
+                    cartesian_step = (
+                        float(args.surface_normal_approach_speed_m_s)
+                        / float(args.steps_per_second)
+                    )
+                    desired_delta = error * torch.clamp(
+                        cartesian_step / error_norm.clamp_min(1.0e-9),
+                        max=1.0,
+                    )
+                    apply_pad_cartesian_step(
+                        command_matrix,
+                        ~ready_mask & ~approach_aborted[:, None],
+                        desired_delta,
+                        control_points,
+                    )
+                else:
+                    for group_index, dof_indices in enumerate(
+                        active_dof_indices_by_group
+                    ):
+                        moving = ~ready_mask[:, group_index] & ~approach_aborted
+                        if bool(moving.any().item()):
+                            rows = torch.nonzero(
+                                moving, as_tuple=False
+                            ).squeeze(1)
+                            current = command_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ]
+                            upper = close_limit_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ]
+                            command_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ] = torch.minimum(current + joint_step, upper)
+                gym.set_dof_position_target_tensor(
+                    sim,
+                    gymtorch.unwrap_tensor(command_matrix.reshape(-1)),
+                )
+                gym.simulate(sim)
+                gym.fetch_results(sim, True)
+                if args.surface_normal_target_closure:
+                    target_points_world, target_normals_world = (
+                        object_assigned_targets_world(
+                            closure_object_actor_indices_t
+                        )
+                    )
+                    wait_points = (
+                        target_points_world
+                        + args.surface_ready_clearance_m
+                        * target_normals_world
+                    )
+                    pad_points = surface_pad_world_points()
+                    control_points, current_indices = selected_pad_points(
+                        pad_points, wait_points
+                    )
+                    current_indices = torch.where(
+                        ready_mask,
+                        normal_selected_pad_indices,
+                        current_indices,
+                    )
+                    control_points, _ = selected_pad_points(
+                        pad_points, wait_points, current_indices
+                    )
+                    position_error = torch.linalg.norm(
+                        wait_points - control_points, dim=2
+                    )
+                    clearances = (
+                        (control_points - target_points_world)
+                        * target_normals_world
+                    ).sum(dim=2)
+                    valid_band = (
+                        position_error
+                        <= args.surface_normal_position_tolerance_m
+                    ) & (
+                        clearances
+                        >= -args.surface_ready_penetration_tolerance_m
+                    )
+                else:
+                    clearances = surface_pad_clearances()
+                    valid_band = (
+                        clearances
+                        <= (
+                            args.surface_ready_clearance_m
+                            + args.surface_ready_braking_margin_m
+                        )
+                    ) & (
+                        clearances
+                        >= -args.surface_ready_penetration_tolerance_m
+                    )
+                if approach_step == 0:
+                    surface_initial_pad_clearance_tensor.copy_(clearances)
+                surface_pad_clearance_tensor.copy_(clearances)
+                surface_min_pad_clearance_tensor.copy_(
+                    torch.minimum(surface_min_pad_clearance_tensor, clearances)
+                )
+                newly_ready = valid_band & ~ready_mask
+                ready_mask |= valid_band
+                if args.surface_normal_target_closure:
+                    normal_selected_pad_indices[newly_ready] = current_indices[
+                        newly_ready
+                    ]
+                surface_ready_steps_tensor[newly_ready] = approach_step + 1
+                surface_ready_pad_clearance_tensor[newly_ready] = clearances[
+                    newly_ready
+                ]
+                # The command is intentionally one speed increment ahead of
+                # the measured joint.  Snap a newly waiting digit's target to
+                # its measured angle so the high-gain drive does not continue
+                # pulling it through the waiting band after the flag is set.
+                gym.refresh_dof_state_tensor(sim)
+                measured_dof_position = dof_state_tensor.view(
+                    count, dof_count, 2
+                )[:, :, 0]
+                for group_index, dof_indices in enumerate(
+                    active_dof_indices_by_group
+                ):
+                    braking = newly_ready[:, group_index]
+                    if bool(braking.any().item()):
+                        rows = torch.nonzero(
+                            braking, as_tuple=False
+                        ).squeeze(1)
+                        command_matrix[
+                            rows[:, None], dof_indices[None, :]
+                        ] = measured_dof_position[
+                            rows[:, None], dof_indices[None, :]
+                        ]
+
+                gym.refresh_net_contact_force_tensor(sim)
+                hand_force_norm = torch.linalg.norm(
+                    net_contact_force[hand_body_indices_t], dim=2
+                )
+                approach_object_body_indices_t = (
+                    closure_object_body_indices_t
+                    if args.surface_fixed_approach
+                    else object_body_indices_t
+                )
+                object_force_norm = torch.linalg.norm(
+                    net_contact_force[approach_object_body_indices_t], dim=1
+                )
+                for group_index, group in enumerate(contact_groups):
+                    group_force = hand_force_norm[
+                        :, group["body_indices"]
+                    ].amax(dim=1)
+                    peak_group_force_tensor[:, group_index] = torch.maximum(
+                        peak_group_force_tensor[:, group_index], group_force
+                    )
+                    distal_force = hand_force_norm[
+                        :, pad_local_body_indices[group_index]
+                    ]
+                    surface_nonpad_collision_tensor[:, group_index] |= (
+                        distal_force >= args.contact_stop_force_threshold
+                    ) & (
+                        clearances[:, group_index]
+                        > args.surface_ready_clearance_m
+                    ) & (
+                        object_force_norm
+                        >= args.contact_stop_force_threshold
+                    )
+                    other_body_indices = [
+                        body_index
+                        for body_index in group["body_indices"]
+                        if body_index != pad_local_body_indices[group_index]
+                    ]
+                    if other_body_indices:
+                        nonpad_force = hand_force_norm[
+                            :, other_body_indices
+                        ].amax(dim=1)
+                        surface_nonpad_collision_tensor[:, group_index] |= (
+                            nonpad_force >= args.contact_stop_force_threshold
+                        ) & (
+                            distal_force < args.contact_stop_force_threshold
+                        ) & (
+                            object_force_norm
+                            >= args.contact_stop_force_threshold
+                        )
+                gym.refresh_actor_root_state_tensor(sim)
+                approach_actor_indices_t = (
+                    closure_object_actor_indices_t
+                    if args.surface_fixed_approach
+                    else object_actor_indices_t
+                )
+                approach_displacement = torch.linalg.norm(
+                    root[approach_actor_indices_t, :3]
+                    - approach_start_positions,
+                    dim=1,
+                )
+                surface_approach_pushed_tensor |= (
+                    approach_displacement
+                    > args.surface_sync_max_closure_displacement_m
+                )
+                severe_overshoot_by_pad = (
+                    clearances
+                    < -args.surface_ready_penetration_tolerance_m
+                ) & ~ready_mask
+                if args.surface_normal_target_closure:
+                    severe_overshoot_by_pad &= (
+                        position_error
+                        <= 3.0 * args.surface_normal_position_tolerance_m
+                    )
+                surface_severe_overshoot_tensor |= severe_overshoot_by_pad
+                severe_overshoot = severe_overshoot_by_pad.any(dim=1)
+                approach_aborted |= (
+                    surface_nonpad_collision_tensor.any(dim=1)
+                    | surface_approach_pushed_tensor
+                    | severe_overshoot
+                )
+                render_viewer()
+                capture_videos.physics_step += 1
+                capture_videos("surface_approach")
+                capture_states.physics_step += 1
+                capture_states("surface_approach")
+                capture_closure_telemetry(
+                    "surface_approach",
+                    dynamic_object=not args.surface_fixed_approach,
+                )
+                if bool((ready_mask.all(dim=1) | approach_aborted).all().item()):
+                    break
+
+            surface_all_ready_tensor.copy_(
+                ready_mask.all(dim=1) & ~approach_aborted
+            )
+            gym.refresh_actor_root_state_tensor(sim)
+            surface_approach_displacement_tensor.copy_(
+                torch.linalg.norm(
+                    root[
+                        closure_object_actor_indices_t
+                        if args.surface_fixed_approach
+                        else object_actor_indices_t,
+                        :3,
+                    ]
+                    - approach_start_positions,
+                    dim=1,
+                )
+            )
+            if args.surface_fixed_approach:
+                root[object_actor_indices_t, :7] = root[
+                    closure_object_actor_indices_t, :7
+                ]
+                root[object_actor_indices_t, 7:13] = 0.0
+                root[closure_object_actor_indices_t, 0:2] = root[
+                    object_actor_indices_t, 0:2
+                ]
+                root[closure_object_actor_indices_t, 2] = -10.0
+                root[closure_object_actor_indices_t, 7:13] = 0.0
+                swapped_actor_indices_i32 = torch.cat(
+                    (
+                        object_actor_indices_i32,
+                        closure_object_actor_indices_i32,
+                    )
+                )
+                if not gym.set_actor_root_state_tensor_indexed(
+                    sim,
+                    gymtorch.unwrap_tensor(root),
+                    gymtorch.unwrap_tensor(swapped_actor_indices_i32),
+                    int(swapped_actor_indices_i32.numel()),
+                ):
+                    raise RuntimeError(
+                        "Failed to release fixed surface-approach objects"
+                    )
+                gym.refresh_actor_root_state_tensor(sim)
+            sync_start_positions = root[object_actor_indices_t, :3].clone()
+            stopped_groups = torch.zeros_like(ready_mask)
+            contact_streak = torch.zeros(
+                (count, len(contact_groups)),
+                device=device,
+                dtype=torch.int32,
+            )
+            for closure_step in range(args.closure_steps):
+                eligible = surface_all_ready_tensor & ~surface_sync_pushed_tensor
+                if args.surface_normal_target_closure:
+                    target_points_world, target_normals_world = (
+                        object_assigned_targets_world(object_actor_indices_t)
+                    )
+                    pad_points = surface_pad_world_points()
+                    control_points, _ = selected_pad_points(
+                        pad_points,
+                        target_points_world,
+                        normal_selected_pad_indices,
+                    )
+                    desired_delta = (
+                        -float(args.surface_normal_close_speed_m_s)
+                        / float(args.steps_per_second)
+                        * target_normals_world
+                    )
+                    apply_pad_cartesian_step(
+                        command_matrix,
+                        eligible[:, None] & ~stopped_groups,
+                        desired_delta,
+                        control_points,
+                    )
+                else:
+                    for group_index, dof_indices in enumerate(
+                        active_dof_indices_by_group
+                    ):
+                        moving = eligible & ~stopped_groups[:, group_index]
+                        if bool(moving.any().item()):
+                            rows = torch.nonzero(
+                                moving, as_tuple=False
+                            ).squeeze(1)
+                            current = command_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ]
+                            upper = close_limit_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ]
+                            command_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ] = torch.minimum(current + joint_step, upper)
+                gym.set_dof_position_target_tensor(
+                    sim,
+                    gymtorch.unwrap_tensor(command_matrix.reshape(-1)),
+                )
+                gym.simulate(sim)
+                gym.fetch_results(sim, True)
+                if args.surface_normal_target_closure:
+                    target_points_world, target_normals_world = (
+                        object_assigned_targets_world(object_actor_indices_t)
+                    )
+                    pad_points = surface_pad_world_points()
+                    control_points, _ = selected_pad_points(
+                        pad_points,
+                        target_points_world,
+                        normal_selected_pad_indices,
+                    )
+                    clearances = (
+                        (control_points - target_points_world)
+                        * target_normals_world
+                    ).sum(dim=2)
+                else:
+                    clearances = surface_pad_clearances()
+                surface_pad_clearance_tensor.copy_(clearances)
+                surface_min_pad_clearance_tensor.copy_(
+                    torch.minimum(surface_min_pad_clearance_tensor, clearances)
+                )
+                gym.refresh_net_contact_force_tensor(sim)
+                hand_force_norm = torch.linalg.norm(
+                    net_contact_force[hand_body_indices_t], dim=2
+                )
+                object_force_norm = torch.linalg.norm(
+                    net_contact_force[object_body_indices_t], dim=1
+                )
+                for group_index, group in enumerate(contact_groups):
+                    distal_force = hand_force_norm[
+                        :, pad_local_body_indices[group_index]
+                    ]
+                    peak_group_force_tensor[:, group_index] = torch.maximum(
+                        peak_group_force_tensor[:, group_index], distal_force
+                    )
+                    contacting = (
+                        distal_force >= args.contact_stop_force_threshold
+                    ) & (
+                        object_force_norm >= args.contact_stop_force_threshold
+                    ) & surface_all_ready_tensor
+                    contact_streak[:, group_index] = torch.where(
+                        contacting,
+                        contact_streak[:, group_index] + 1,
+                        torch.zeros_like(contact_streak[:, group_index]),
+                    )
+                    newly_stopped = (
+                        contact_streak[:, group_index]
+                        >= args.contact_confirm_steps
+                    ) & ~stopped_groups[:, group_index]
+                    if bool(newly_stopped.any().item()):
+                        rows = torch.nonzero(
+                            newly_stopped, as_tuple=False
+                        ).squeeze(1)
+                        dof_indices = active_dof_indices_by_group[group_index]
+                        command_matrix[
+                            rows[:, None], dof_indices[None, :]
+                        ] = torch.minimum(
+                            command_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ] + args.surface_sync_preload_rad,
+                            close_limit_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ],
+                        )
+                        stopped_groups[newly_stopped, group_index] = True
+                        contact_steps_tensor[newly_stopped, group_index] = (
+                            closure_step + 1
+                        )
+                gym.refresh_actor_root_state_tensor(sim)
+                sync_displacement = torch.linalg.norm(
+                    root[object_actor_indices_t, :3] - sync_start_positions,
+                    dim=1,
+                )
+                surface_sync_pushed_tensor |= (
+                    sync_displacement
+                    > args.surface_sync_max_closure_displacement_m
+                )
+                render_viewer()
+                capture_videos.physics_step += 1
+                capture_videos("surface_sync")
+                capture_states.physics_step += 1
+                capture_states("surface_sync")
+                capture_closure_telemetry("surface_sync", dynamic_object=True)
+                done = (
+                    ~surface_all_ready_tensor
+                    | surface_sync_pushed_tensor
+                    | stopped_groups.all(dim=1)
+                )
+                if bool(done.all().item()):
+                    break
+            gym.refresh_actor_root_state_tensor(sim)
+            surface_sync_displacement_tensor.copy_(
+                torch.linalg.norm(
+                    root[object_actor_indices_t, :3]
+                    - sync_start_positions,
+                    dim=1,
+                )
+            )
+            evaluation_targets_tensor = command_matrix.reshape(-1).clone()
+        else:
+            for closure_step in range(args.closure_steps):
+                if args.closure_trajectory == "step":
+                    alpha = 1.0
+                else:
+                    alpha = float(closure_step + 1) / float(args.closure_steps)
+                    if args.closure_trajectory == "smoothstep":
+                        alpha = alpha * alpha * (3.0 - 2.0 * alpha)
+                closure_targets = dof_targets + alpha * (
+                    inner_targets_tensor - dof_targets
+                )
+                if args.contact_aware_closure:
+                    closure_matrix = closure_targets.view(count, dof_count).clone()
+                    for group_index, group in enumerate(contact_groups):
+                        frozen = stopped_groups[:, group_index]
+                        if bool(frozen.any().item()):
+                            rows = torch.nonzero(frozen, as_tuple=False).squeeze(1)
+                            dof_indices = torch.as_tensor(
+                                group["dof_indices"], device=device, dtype=torch.long
+                            )
+                            closure_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ] = evaluation_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ]
+                    closure_targets = closure_matrix.reshape(-1)
+                gym.set_dof_position_target_tensor(
+                    sim, gymtorch.unwrap_tensor(closure_targets)
+                )
+                gym.simulate(sim)
+                gym.fetch_results(sim, True)
+                if args.contact_aware_closure:
+                    gym.refresh_net_contact_force_tensor(sim)
+                    hand_force_norm = torch.linalg.norm(
+                        net_contact_force[hand_body_indices_t], dim=2
+                    )
+                    for group_index, group in enumerate(contact_groups):
+                        group_force = hand_force_norm[
+                            :, group["body_indices"]
+                        ].amax(dim=1)
+                        peak_group_force_tensor[:, group_index] = torch.maximum(
+                            peak_group_force_tensor[:, group_index], group_force
+                        )
+                        contacting = (
+                            group_force >= args.contact_stop_force_threshold
+                        )
+                        contact_streak[:, group_index] = torch.where(
+                            contacting,
+                            contact_streak[:, group_index] + 1,
+                            torch.zeros_like(contact_streak[:, group_index]),
+                        )
+                        newly_stopped = (
+                            (contact_streak[:, group_index] >= args.contact_confirm_steps)
+                            & ~stopped_groups[:, group_index]
+                        )
+                        if bool(newly_stopped.any().item()):
+                            rows = torch.nonzero(
+                                newly_stopped, as_tuple=False
+                            ).squeeze(1)
+                            dof_indices = torch.as_tensor(
+                                group["dof_indices"], device=device, dtype=torch.long
+                            )
+                            current = closure_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ]
+                            proposed = current + args.contact_preload_fraction * (
+                                closing_delta_matrix[
+                                    rows[:, None], dof_indices[None, :]
+                                ]
+                            )
+                            lower = torch.minimum(
+                                outer_matrix[rows[:, None], dof_indices[None, :]],
+                                inner_matrix[rows[:, None], dof_indices[None, :]],
+                            )
+                            upper = torch.maximum(
+                                outer_matrix[rows[:, None], dof_indices[None, :]],
+                                inner_matrix[rows[:, None], dof_indices[None, :]],
+                            )
+                            evaluation_matrix[
+                                rows[:, None], dof_indices[None, :]
+                            ] = torch.maximum(torch.minimum(proposed, upper), lower)
+                            stopped_groups[newly_stopped, group_index] = True
+                            contact_steps_tensor[newly_stopped, group_index] = (
+                                closure_step + 1
+                            )
+                render_viewer()
+                capture_videos.physics_step += 1
+                capture_videos("closure")
+                capture_states.physics_step += 1
+                capture_states("closure")
+                capture_closure_telemetry("closure")
+        for _ in range(args.pre_release_hold_steps):
             gym.set_dof_position_target_tensor(
-                sim, gymtorch.unwrap_tensor(closure_targets)
+                sim, gymtorch.unwrap_tensor(evaluation_targets_tensor)
             )
             gym.simulate(sim)
             gym.fetch_results(sim, True)
             render_viewer()
             capture_videos.physics_step += 1
-            capture_videos("closure")
+            capture_videos("pre_release_hold")
             capture_states.physics_step += 1
-            capture_states("closure")
-            capture_closure_telemetry("closure")
+            capture_states("pre_release_hold")
+            capture_closure_telemetry("pre_release_hold")
         capture_videos("closure_end", force=True)
         capture_states("closure_end", force=True)
         gym.refresh_actor_root_state_tensor(sim)
         inner_object_positions = (
-            root[closure_object_actor_indices_t, :3]
+            root[
+                object_actor_indices_t
+                if args.surface_fixed_approach
+                else closure_object_actor_indices_t,
+                :3,
+            ]
             .detach()
             .cpu()
             .numpy()
@@ -1769,7 +3315,7 @@ def validate_object(
                 raise RuntimeError("Failed to swap fixed/dynamic object states")
         for _ in range(args.inner_hold_steps):
             gym.set_dof_position_target_tensor(
-                sim, gymtorch.unwrap_tensor(inner_targets_tensor)
+                sim, gymtorch.unwrap_tensor(evaluation_targets_tensor)
             )
             gym.simulate(sim)
             gym.fetch_results(sim, True)
@@ -1781,6 +3327,53 @@ def validate_object(
             capture_closure_telemetry("inner_hold", dynamic_object=True)
         capture_videos("inner_hold_end", force=True)
         capture_states("inner_hold_end", force=True)
+        contact_steps = (
+            contact_steps_tensor.detach().cpu().numpy()
+            if contact_steps_tensor is not None
+            else None
+        )
+        peak_group_forces = (
+            peak_group_force_tensor.detach().cpu().numpy()
+            if peak_group_force_tensor is not None
+            else None
+        )
+        surface_sync_arrays = None
+        if args.surface_sync_closure:
+            surface_sync_arrays = {
+                "ready_steps": surface_ready_steps_tensor.detach().cpu().numpy(),
+                "contact_steps": contact_steps,
+                "initial_clearance": (
+                    surface_initial_pad_clearance_tensor.detach().cpu().numpy()
+                ),
+                "ready_clearance": (
+                    surface_ready_pad_clearance_tensor.detach().cpu().numpy()
+                ),
+                "final_clearance": (
+                    surface_pad_clearance_tensor.detach().cpu().numpy()
+                ),
+                "minimum_clearance": (
+                    surface_min_pad_clearance_tensor.detach().cpu().numpy()
+                ),
+                "nonpad_collision": (
+                    surface_nonpad_collision_tensor.detach().cpu().numpy()
+                ),
+                "severe_overshoot": (
+                    surface_severe_overshoot_tensor.detach().cpu().numpy()
+                ),
+                "all_ready": surface_all_ready_tensor.detach().cpu().numpy(),
+                "approach_pushed": (
+                    surface_approach_pushed_tensor.detach().cpu().numpy()
+                ),
+                "sync_pushed": (
+                    surface_sync_pushed_tensor.detach().cpu().numpy()
+                ),
+                "approach_displacement": (
+                    surface_approach_displacement_tensor.detach().cpu().numpy()
+                ),
+                "sync_displacement": (
+                    surface_sync_displacement_tensor.detach().cpu().numpy()
+                ),
+            }
 
         outer_to_inner_vectors = inner_object_positions - outer_object_positions
         outer_to_contact_vectors = first_contact_positions - outer_object_positions
@@ -1896,7 +3489,11 @@ def validate_object(
             if args.direction_order == "cedex"
             else DIRECTIONS_GENDEX
         )
-        if args.max_directions is not None:
+        if args.only_direction is not None:
+            directions = tuple(
+                item for item in directions if item[0] == args.only_direction
+            )
+        elif args.max_directions is not None:
             if not 1 <= int(args.max_directions) <= len(directions):
                 raise ValueError("--max-directions must be within [1, 6]")
             directions = directions[: int(args.max_directions)]
@@ -1916,7 +3513,7 @@ def validate_object(
             forces[object_body_indices_t] = force_magnitude * direction_tensor
             for _ in range(direction_steps):
                 gym.set_dof_position_target_tensor(
-                    sim, gymtorch.unwrap_tensor(inner_targets_tensor)
+                    sim, gymtorch.unwrap_tensor(evaluation_targets_tensor)
                 )
                 gym.apply_rigid_body_force_tensors(
                     sim,
@@ -1949,6 +3546,139 @@ def validate_object(
         overall_end = root[object_actor_indices_t, :3].clone()
         final_displacement = torch.linalg.norm(overall_end - overall_start, dim=1)
         final_success = final_displacement <= args.threshold
+
+        def surface_sync_summary(index: int) -> dict | None:
+            if surface_sync_arrays is None:
+                return None
+            names = [str(group["name"]) for group in contact_groups]
+            ready_steps = surface_sync_arrays["ready_steps"][index]
+            contact_steps_row = surface_sync_arrays["contact_steps"][index]
+            nonpad = surface_sync_arrays["nonpad_collision"][index]
+            overshoot = surface_sync_arrays["severe_overshoot"][index]
+            all_ready = bool(surface_sync_arrays["all_ready"][index])
+            approach_pushed = bool(
+                surface_sync_arrays["approach_pushed"][index]
+            )
+            sync_pushed = bool(surface_sync_arrays["sync_pushed"][index])
+            contacted_count = int((contact_steps_row >= 0).sum())
+            if bool(nonpad.any()):
+                outcome = "nonpad_collision_during_approach"
+            elif approach_pushed:
+                outcome = "ball_pushed_during_independent_approach"
+            elif bool(overshoot.any()):
+                outcome = "pad_overshot_waiting_band"
+            elif not all_ready:
+                outcome = "not_all_pads_reachable"
+            elif sync_pushed:
+                outcome = "ball_pushed_during_synchronized_close"
+            elif contacted_count < len(contact_groups):
+                outcome = "incomplete_pad_contact"
+            else:
+                outcome = "five_pad_contact_completed"
+            return {
+                "enabled": True,
+                "schema": (
+                    "contactdiff-assigned-normal-fixed-stage-v1"
+                    if args.surface_normal_target_closure
+                    else "contactdiff-mesh-surface-sync-v1"
+                ),
+                "prepared_outer_inner_targets_used": False,
+                "object_surface_model": (
+                    "assigned_contact_points_and_object_normals"
+                    if args.surface_normal_target_closure
+                    else "deterministic_collision_mesh_samples_with_face_normals"
+                ),
+                "fixed_object_during_waiting_pose_stage": bool(
+                    args.surface_fixed_approach
+                ),
+                "synchronized_closure_direction": (
+                    "assigned_contact_inward_normal_damped_least_squares"
+                    if args.surface_normal_target_closure
+                    else "positive_flexion_joint_direction"
+                ),
+                "normal_approach_speed_m_s": float(
+                    args.surface_normal_approach_speed_m_s
+                ),
+                "normal_close_speed_m_s": float(
+                    args.surface_normal_close_speed_m_s
+                ),
+                "normal_position_tolerance_m": float(
+                    args.surface_normal_position_tolerance_m
+                ),
+                "mesh_surface_sample_count": int(
+                    args.surface_sync_mesh_samples
+                ),
+                "median_target_radius_m": float(sphere_radii[index]),
+                "ready_clearance_m": float(args.surface_ready_clearance_m),
+                "braking_trigger_clearance_m": float(
+                    args.surface_ready_clearance_m
+                    + args.surface_ready_braking_margin_m
+                ),
+                "joint_speed_rad_s": float(
+                    args.surface_sync_joint_speed_rad_s
+                ),
+                "start_open_from_q_contact_rad": float(
+                    args.surface_sync_start_open_rad
+                ),
+                "all_pads_ready": all_ready,
+                "ready_pad_count": int((ready_steps >= 0).sum()),
+                "contacted_pad_count": contacted_count,
+                "controller_completed": bool(
+                    all_ready
+                    and contacted_count == len(contact_groups)
+                    and not approach_pushed
+                    and not sync_pushed
+                    and not bool(nonpad.any())
+                    and not bool(overshoot.any())
+                ),
+                "outcome": outcome,
+                "pad_ready_step": {
+                    name: (int(value) if value >= 0 else None)
+                    for name, value in zip(names, ready_steps)
+                },
+                "pad_contact_step": {
+                    name: (int(value) if value >= 0 else None)
+                    for name, value in zip(names, contact_steps_row)
+                },
+                "initial_pad_clearance_m": {
+                    name: float(value)
+                    for name, value in zip(
+                        names,
+                        surface_sync_arrays["initial_clearance"][index],
+                    )
+                },
+                "waiting_pad_clearance_m": {
+                    name: (float(value) if math.isfinite(float(value)) else None)
+                    for name, value in zip(
+                        names,
+                        surface_sync_arrays["ready_clearance"][index],
+                    )
+                },
+                "minimum_pad_clearance_m": {
+                    name: float(value)
+                    for name, value in zip(
+                        names,
+                        surface_sync_arrays["minimum_clearance"][index],
+                    )
+                },
+                "nonpad_collision_digits": [
+                    name for name, active in zip(names, nonpad) if active
+                ],
+                "overshoot_digits": [
+                    name for name, active in zip(names, overshoot) if active
+                ],
+                "approach_object_displacement_m": float(
+                    surface_sync_arrays["approach_displacement"][index]
+                ),
+                "synchronized_close_object_displacement_m": float(
+                    surface_sync_arrays["sync_displacement"][index]
+                ),
+            }
+        if viewer is not None and args.viewer_final_hold_seconds > 0.0:
+            deadline = time.monotonic() + float(args.viewer_final_hold_seconds)
+            while viewer is not None and time.monotonic() < deadline:
+                render_viewer()
+                time.sleep(1.0 / 60.0)
         results = []
         for index, sample in enumerate(samples):
             finite = all(
@@ -1985,6 +3715,30 @@ def validate_object(
                         point["segment_displacement_m"]
                         for point in trajectory[index]
                     ),
+                    "closure_object_displacement_m": float(
+                        np.linalg.norm(outer_to_inner_vectors[index])
+                    ),
+                    "contact_aware_closure": ({
+                        "enabled": True,
+                        "group_contact_step": {
+                            str(group["name"]): (
+                                int(contact_steps[index, group_index])
+                                if contact_steps[index, group_index] >= 0
+                                else None
+                            )
+                            for group_index, group in enumerate(contact_groups)
+                        },
+                        "group_peak_force_n": {
+                            str(group["name"]): float(
+                                peak_group_forces[index, group_index]
+                            )
+                            for group_index, group in enumerate(contact_groups)
+                        },
+                        "contacted_group_count": int(
+                            (contact_steps[index] >= 0).sum()
+                        ),
+                    } if args.contact_aware_closure else None),
+                    "surface_sync_closure": surface_sync_summary(index),
                     "closure_telemetry": ({
                         "schema": "contactdiff-physx-closure-summary-v2",
                         "contact_measurement": (
@@ -2101,20 +3855,21 @@ def validate_object(
                                 / f"{sample_artifact_stem(object_name, sample)}.mp4"
                             ).resolve()
                         )
-                        if args.video_dir is not None
+                        if index in video_writers
                         else None
                     ),
                     "video_frames": video_frame_counts[index],
                 }
             )
-        for writer in video_writers:
+        for writer in video_writers.values():
             writer.release()
         if args.state_dir is not None:
             args.state_dir.mkdir(parents=True, exist_ok=True)
             body_names = list(gym.get_asset_rigid_body_names(hand_asset)) + [
                 "object"
             ]
-            for index, sample in enumerate(samples):
+            for index in sorted(state_indices):
+                sample = samples[index]
                 state_path = args.state_dir / (
                     f"{sample_artifact_stem(object_name, sample)}.npz"
                 )
@@ -2128,6 +3883,13 @@ def validate_object(
                     hand_urdf=np.asarray(str(movable_urdf.resolve())),
                     object_name=np.asarray(object_name),
                     source_index=np.asarray(int(sample["source_index"])),
+                    candidate_rank=np.asarray(int(sample["candidate_rank"])),
+                    particle_index=np.asarray(
+                        int(sample.get("particle_index", -1))
+                    ),
+                    diffusion_contacts_object=np.asarray(
+                        diffusion_contacts[index], dtype=np.float32
+                    ),
                     visualization_category=np.asarray(
                         str(sample.get("visualization_category", "selected"))
                     ),
@@ -2275,7 +4037,9 @@ def main() -> None:
                 if args.cpu_physics
                 else "GPU PhysX"
             ),
-            "tensor_pipeline": "CPU" if args.cpu_physics else "GPU",
+            "tensor_pipeline": (
+                "CPU" if args.cpu_physics or args.cpu_tensor_pipeline else "GPU"
+            ),
             "dt": 1.0 / args.steps_per_second,
             "steps_per_second": args.steps_per_second,
             "substeps": args.substeps,
@@ -2283,10 +4047,16 @@ def main() -> None:
             "solver_position_iterations": args.solver_position_iterations,
             "solver_velocity_iterations": args.solver_velocity_iterations,
             "contact_offset_m": args.contact_offset,
+            "experimental_low_contact_offset": (
+                args.experimental_low_contact_offset
+            ),
             "rest_offset_m": args.rest_offset,
             "gravity_mps2": 0.0,
             "robot_friction": args.robot_friction,
             "object_friction": args.object_friction,
+            "disabled_hand_object_collision_body_prefixes": list(
+                args.disable_hand_object_collision_body_prefix
+            ),
             "object_density_kg_m3": args.object_density,
             "hand_density_kg_m3": (
                 args.hand_density
@@ -2333,15 +4103,44 @@ def main() -> None:
             ),
             "closure_steps": args.closure_steps,
             "closure_trajectory": args.closure_trajectory,
+            "contact_aware_closure": {
+                "enabled": args.contact_aware_closure,
+                "controller": "per-ShadowHand-digit contact stop",
+                "detection_source": (
+                    "GPU per-rigid-body net contact force with hand "
+                    "self-collision filtered"
+                ),
+                "hand_self_collision_disabled": args.contact_aware_closure,
+                "force_threshold_n": args.contact_stop_force_threshold,
+                "confirm_steps": args.contact_confirm_steps,
+                "preload_fraction": args.contact_preload_fraction,
+                "pre_release_hold_steps": args.pre_release_hold_steps,
+            },
             "inner_hold_steps": args.inner_hold_steps,
             "closure_ab_experiment": args.closure_ab_experiment,
             "closure_object_mode": args.closure_object_mode,
             "closure_object_transition": (
+                "fixed assigned-contact staging; zero-velocity dynamic release "
+                "before synchronized inward-normal closure"
+                if args.surface_fixed_approach
+                else
                 "fixed-base collision actor parked at inner via GPU root-state "
                 "tensor; zero-velocity dynamic actor moved to the identical pose"
                 if args.closure_object_mode == "fixed_until_inner"
                 else "dynamic from outer through force evaluation"
             ),
+            "surface_sync_controller": {
+                "enabled": args.surface_sync_closure,
+                "fixed_approach": args.surface_fixed_approach,
+                "assigned_normal_targeting": args.surface_normal_target_closure,
+                "waiting_clearance_m": args.surface_ready_clearance_m,
+                "normal_approach_speed_m_s": args.surface_normal_approach_speed_m_s,
+                "normal_close_speed_m_s": args.surface_normal_close_speed_m_s,
+                "normal_position_tolerance_m": (
+                    args.surface_normal_position_tolerance_m
+                ),
+                "normal_damping": args.surface_normal_damping,
+            },
             "closure_telemetry": {
                 "enabled": args.closure_telemetry_dir is not None,
                 "dense_format": "compressed NPZ, frame-major",
@@ -2357,15 +4156,23 @@ def main() -> None:
             "direction_seconds": args.direction_seconds,
             "direction_order": args.direction_order,
             "max_directions": args.max_directions,
-            "partial_disturbance_prescreen": args.max_directions is not None,
-            "directions": [
-                name
-                for name, _ in (
-                    DIRECTIONS_CEDEX
-                    if args.direction_order == "cedex"
-                    else DIRECTIONS_GENDEX
-                )[: args.max_directions]
-            ],
+            "only_direction": args.only_direction,
+            "partial_disturbance_prescreen": (
+                args.max_directions is not None
+                or args.only_direction is not None
+            ),
+            "directions": (
+                [args.only_direction]
+                if args.only_direction is not None
+                else [
+                    name
+                    for name, _ in (
+                        DIRECTIONS_CEDEX
+                        if args.direction_order == "cedex"
+                        else DIRECTIONS_GENDEX
+                    )[: args.max_directions]
+                ]
+            ),
             "steps_per_direction": max(
                 1, round(args.steps_per_second * args.direction_seconds)
             ),
@@ -2389,9 +4196,18 @@ def main() -> None:
                 else None
             ),
             "viewer_camera_mode_initial": (
-                "free" if args.viewer_free_camera else "object_coordinates"
+                "free"
+                if args.viewer_free_camera
+                else f"object_{args.viewer_camera_follow_mode}_follow"
             ),
             "viewer_focus_sample": args.viewer_focus_sample,
+            "viewer_camera_follow_mode": args.viewer_camera_follow_mode,
+            "viewer_show_reference_grid": bool(
+                args.viewer and args.viewer_show_reference_grid
+            ),
+            "viewer_final_hold_seconds": float(
+                args.viewer_final_hold_seconds
+            ),
             "video_show_diffusion_contacts": bool(
                 args.video_dir is not None
                 and args.video_show_diffusion_contacts

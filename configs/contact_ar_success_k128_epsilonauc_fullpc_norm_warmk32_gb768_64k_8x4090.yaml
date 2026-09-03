@@ -1,0 +1,20 @@
+base_config: contact_ar_success_k128_fullpc_gb768_lr8e4_scratch64k_8x4090.yaml
+
+dataset:
+  source_index_allowlist_file: outputs/contact_ar_success_k128_epsilonauc_fullpc_norm_warmk32_gb768_64k_8x4090/k128_epsilon_auc_allowlist.json.gz
+  index_cache_dir: .cache/contactdiffusion/multidex_success_k128_epsilonauc_n235_seen48
+  object_observation_mode: full
+  partial_probability: 0.0
+  num_points: 2048
+  full_geometry_num_points: 2048
+  normalize: true
+  append_observation_type_feature: false
+
+model:
+  object_input_dim: 3
+  pointnet_local_radii: [0.2, 0.4, 0.8]
+
+train:
+  output_dir: outputs/contact_ar_success_k128_epsilonauc_fullpc_norm_warmk32_gb768_64k_8x4090/model
+  warmstart_model: outputs/contact_ar_k32_gb768_8x96_lr8e4_20260901/model/checkpoints/step_00004000.pt
+  resume: null

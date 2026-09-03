@@ -7,7 +7,7 @@ the project can run without CUDA PointNet++ extensions.
 from __future__ import annotations
 
 import math
-from typing import Optional, Union
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -233,6 +233,9 @@ class ContactSetDenoiser(nn.Module):
         pointnet_local_npoints: Optional[list[int]] = None,
         pointnet_local_radii: Optional[list[float]] = None,
         pointnet_local_nsamples: Optional[list[int]] = None,
+        include_object_xyz_in_tokens: bool = False,
+        use_set_token: bool = False,
+        use_set_token_film: bool = False,
         activation: str = "GELU",
     ):
         super().__init__()
@@ -245,6 +248,11 @@ class ContactSetDenoiser(nn.Module):
         self.n_values = [int(n) for n in n_values]
         self.use_n_embedding = bool(use_n_embedding)
         self.use_object_cross_attention = bool(use_object_cross_attention)
+        self.include_object_xyz_in_tokens = bool(include_object_xyz_in_tokens)
+        self.use_set_token = bool(use_set_token)
+        self.use_set_token_film = bool(use_set_token_film)
+        if self.use_set_token_film and not self.use_set_token:
+            raise ValueError("use_set_token_film requires use_set_token=True")
 
         self.contact_in = nn.Linear(self.dc, self.d_model)
         self.contact_out = nn.Linear(self.d_model, self.dc)
@@ -298,6 +306,11 @@ class ContactSetDenoiser(nn.Module):
             if int(object_feature_dim) == self.d_model
             else nn.Linear(int(object_feature_dim), self.d_model)
         )
+        self.object_xyz_proj = (
+            nn.Linear(3, self.d_model)
+            if self.include_object_xyz_in_tokens
+            else None
+        )
 
         self.blocks = nn.ModuleList(
             [
@@ -311,6 +324,38 @@ class ContactSetDenoiser(nn.Module):
                 for _ in range(int(num_layers))
             ]
         )
+        if self.use_set_token:
+            # The token is dynamic, not just a fixed learned constant: at every
+            # denoising step it summarizes both the current noisy contact set
+            # and the conditioned object.  It then participates in every
+            # self/cross-attention block as a shared grasp-mode state.
+            self.set_token_base = nn.Parameter(torch.empty(1, 1, self.d_model))
+            nn.init.normal_(self.set_token_base, mean=0.0, std=0.02)
+            self.set_token_init = nn.Sequential(
+                nn.LayerNorm(self.d_model),
+                nn.Linear(self.d_model, self.d_model),
+                nn.GELU(),
+                nn.Linear(self.d_model, self.d_model),
+            )
+            if self.use_set_token_film:
+                self.set_token_film_norms = nn.ModuleList(
+                    [nn.LayerNorm(self.d_model) for _ in range(int(num_layers))]
+                )
+                self.set_token_film = nn.ModuleList(
+                    [
+                        nn.Sequential(
+                            nn.LayerNorm(self.d_model),
+                            nn.SiLU(),
+                            nn.Linear(self.d_model, 2 * self.d_model),
+                        )
+                        for _ in range(int(num_layers))
+                    ]
+                )
+                # Preserve the warm-started network at initialization.  The
+                # new shared conditioning path is learned progressively.
+                for film in self.set_token_film:
+                    nn.init.zeros_(film[-1].weight)
+                    nn.init.zeros_(film[-1].bias)
         self.norm = nn.LayerNorm(self.d_model)
 
     @classmethod
@@ -332,19 +377,13 @@ class ContactSetDenoiser(nn.Module):
             pointnet_local_npoints=getattr(cfg, "pointnet_local_npoints", None),
             pointnet_local_radii=getattr(cfg, "pointnet_local_radii", None),
             pointnet_local_nsamples=getattr(cfg, "pointnet_local_nsamples", None),
+            include_object_xyz_in_tokens=getattr(
+                cfg, "include_object_xyz_in_tokens", False
+            ),
+            use_set_token=getattr(cfg, "use_set_token", False),
+            use_set_token_film=getattr(cfg, "use_set_token_film", False),
             activation=getattr(cfg, "activation", "GELU"),
         )
-
-    def _num_contacts_tensor(
-        self, num_contacts: Union[int, torch.Tensor], batch_size: int, device
-    ) -> torch.Tensor:
-        if torch.is_tensor(num_contacts):
-            n_tensor = num_contacts.to(device=device).long()
-            if n_tensor.ndim == 0:
-                n_tensor = n_tensor[None].expand(batch_size)
-        else:
-            n_tensor = torch.full((batch_size,), int(num_contacts), device=device, dtype=torch.long)
-        return n_tensor
 
     def _n_embedding(self, n_tensor: torch.Tensor) -> torch.Tensor:
         if not self.use_n_embedding:
@@ -388,14 +427,16 @@ class ContactSetDenoiser(nn.Module):
             tokens = tokens.unsqueeze(1)
         elif tokens.ndim == 3 and tokens.shape[1] == self.d_model:
             tokens = tokens.transpose(1, 2)
-        return self.object_proj(tokens), xyz
+        tokens = self.object_proj(tokens)
+        if self.object_xyz_proj is not None and xyz is not None:
+            tokens = tokens + self.object_xyz_proj(xyz)
+        return tokens, xyz
 
     def forward(
         self,
         contacts_t: torch.Tensor,
         timesteps: torch.Tensor,
         object_pc: Optional[torch.Tensor] = None,
-        num_contacts: Union[int, torch.Tensor, None] = None,
         object_tokens: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if contacts_t.ndim != 3:
@@ -405,9 +446,7 @@ class ContactSetDenoiser(nn.Module):
 
         batch_size, n, _ = contacts_t.shape
         device = contacts_t.device
-        if num_contacts is None:
-            num_contacts = n
-        n_tensor = self._num_contacts_tensor(num_contacts, batch_size, device)
+        n_tensor = torch.full((batch_size,), n, device=device, dtype=torch.long)
 
         if torch.is_tensor(timesteps) and timesteps.ndim == 0:
             timesteps = timesteps[None].expand(batch_size)
@@ -423,11 +462,34 @@ class ContactSetDenoiser(nn.Module):
                 z = z + obj_tokens.mean(dim=1, keepdim=True)
             obj_tokens = None
 
-        for block in self.blocks:
+        contact_xyz = contacts_t[..., :3]
+        if self.use_set_token:
+            set_context = z.mean(dim=1, keepdim=True)
+            if obj_tokens is not None:
+                set_context = set_context + obj_tokens.mean(dim=1, keepdim=True)
+            set_token = self.set_token_base.expand(batch_size, -1, -1)
+            set_token = set_token + self.set_token_init(set_context)
+            z = torch.cat([set_token, z], dim=1)
+            # A centroid is used only to define the SET query's relative bias
+            # to object surface tokens. Contact token coordinates are unchanged.
+            set_xyz = contact_xyz.mean(dim=1, keepdim=True)
+            contact_xyz = torch.cat([set_xyz, contact_xyz], dim=1)
+
+        for block_index, block in enumerate(self.blocks):
             z = block(
                 z,
                 obj_tokens,
-                contact_xyz=contacts_t[..., :3],
+                contact_xyz=contact_xyz,
                 object_xyz=obj_xyz,
             )
+            if self.use_set_token_film:
+                mode = z[:, :1]
+                contacts = z[:, 1:]
+                shift, scale = self.set_token_film[block_index](mode).chunk(2, dim=-1)
+                contacts = contacts + shift + scale * self.set_token_film_norms[
+                    block_index
+                ](contacts)
+                z = torch.cat([mode, contacts], dim=1)
+        if self.use_set_token:
+            z = z[:, 1:]
         return self.contact_out(self.norm(z))
