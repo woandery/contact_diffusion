@@ -1,0 +1,47 @@
+schema: contactdiff-basic-eawq-execution-protocol-v1
+protocol_id: contactdiff-fetchbench-real60-synth20-full20-ar-k128-step32k-fk1x32x400-eawq-rankfusion-dro-gym-o10i20-palm0-v7-smoke1
+base_protocol_id: contactdiff-multidex-filtered50k-fk64x32x400-eawq-rankfusion-dro-gym-o10i20-palm0-v4
+
+# Local integration smoke only. The model, FK particle/step budget, ranking and
+# PhysX parameters are identical to v7; only the object/contact-set counts are
+# reduced. Results from this protocol are not formal v7 benchmark results.
+model_checkpoint:
+  repository_path: weights/v7/best_val.pt
+  step: 32000
+  sha256: c55badbd2e1ce7bc9cda9b58832e68003b4b757ee02eedee47e01e697c7ec491
+
+generation:
+  contact_sets_per_object: 1
+  particles_per_contact_set: 32
+  optimization_steps: 400
+  retained_per_contact_set: 32
+
+hands:
+  Barrett:
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+  shadow_hand:
+    closure_adapter:
+      name: unified_fixed_direction_o10_i20
+      outer_fraction: 0.10
+      inner_fraction: 0.20
+
+ranking:
+  name: fusion_old_full_residual
+  version: eawq_rank_fusion_v1
+  computation_mode: exact_ranking_only
+  ranking_only: true
+  scope: within_each_contact_set
+  feasibility_gate: feasible_first
+  distal_metric: old_eawq_weighted_mean_residual
+  full_hand_metric: full_hand_weighted_mean_residual
+  normalization: average_tie_rank_mapped_to_0_1
+  fusion: equal_arithmetic_mean
+  tie_break: original_candidate_rank
+  success_labels_used: false
+  final_retained_per_contact_set: 1
+
+reporting:
+  status: local_integration_smoke_only_not_formal_v7_result

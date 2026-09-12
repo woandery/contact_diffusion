@@ -32,6 +32,10 @@ MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID = (
 ALL_PARTICLE_PROTOCOL_ID = (
     "contactdiff-multidex45k-fk64x32x400-all32-dro-gym-o10i20-v1"
 )
+FETCHBENCH_AR32K_V7_PROTOCOL_ID = (
+    "contactdiff-fetchbench-real60-synth20-full20-ar-k128-step32k-fk32x32x400-"
+    "eawq-rankfusion-dro-gym-o10i20-palm0-v7"
+)
 MODEL_145K_ALL_PARTICLE_PROTOCOL_ID = (
     "contactdiff-multidex145k-fk64x32x400-all32-dro-gym-o10i20-v1"
 )
@@ -43,6 +47,7 @@ SUPPORTED_PROTOCOL_IDS = frozenset(
         PROTOCOL_ID,
         PARTIAL_AR64K_V5_PROTOCOL_ID,
         MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
+        FETCHBENCH_AR32K_V7_PROTOCOL_ID,
     )
 )
 UNIFIED_CLOSURE_OUTER_FRACTION = 0.10

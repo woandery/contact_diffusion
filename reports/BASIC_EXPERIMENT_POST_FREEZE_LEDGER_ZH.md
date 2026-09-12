@@ -1,10 +1,10 @@
 # 基础实验配置冻结后的模型、数据、参数与结果台账
 
-更新日期：2026-09-03（Asia/Shanghai）
+更新日期：2026-09-12（Asia/Shanghai）
 
 ## 1. 结论先行
 
-从首个可复现基础闭环冻结到当前版本，基础协议经历了六代：
+从首个可复现基础闭环冻结到当前版本，基础协议经历了七代：
 
 1. **v1（2026-08-13）**：MultiDex success-only 45k、64×32×400、旧
    feasible/GraspQP Top-1；Barrett O0/I5、ShadowHand O10/I20。
@@ -18,14 +18,15 @@
 5. **v5（2026-09-02，历史冻结）**：接触生成器替换为 partial-only、
    full-normalization 的 K=128 AR step-64k；每物体/手 diffusion contact sets 从64
    改为32。FK、exact ranking-only EAWQ、O10/I20和D(R,O) PhysX设置继承v4。
-6. **v6（2026-09-03，当前唯一默认）**：模型改为完整/partial各50%混合训练的
+6. **v6（2026-09-03，历史冻结）**：模型改为完整/partial各50%混合训练的
    K=128 AR step-56k；推理继续直接使用完整2048点云。其他设置继承v5。
+7. **v7（2026-09-12，当前唯一默认）**：模型替换为FetchBench仿真相机partial60%、
+   synthetic partial20%、full20%混合训练的AR32k；其余完全继承v6。
 
 当前最重要的状态不是一个新的成功率，而是：
 
-- v6 协议、full-cloud推理适配和专用运行入口已经冻结；
-- v6 checkpoint 已在远端按step、model type、训练观测与SHA256校验，但尚未完成完整
-  OOD-10 GPU PhysX运行；
+- v7 协议、full-cloud推理适配和专用运行入口已经冻结；
+- v7 checkpoint已下载到weights/v7，step32000与SHA256已校验；v7完整OOD-10 GPU PhysX待运行；
 - filtered-50k 的 40,960 粒子历史运行已经完成，可用于诊断和规则探索；
 - EAWQ 在这批旧标签上将离线 Top-1 从 58.20% 重排到 63.59%；
 - ShadowHand 掌心权重严格512-env common-filler复验中，`w=0` 为
@@ -50,7 +51,7 @@ Gym/Sim 对齐实验只作为形成基础配置的前史，不纳入本台账主
 - **配对消融**：复用同一候选，只改变闭合或执行参数；
 - **可视化/数据审计**：不能作为模型生成成功率。
 
-## 3. 使用过的五类模型
+## 3. 模型记录
 
 | 代号 | 模型与 checkpoint | 训练数据 | 主要训练参数 | 本报告中的用途 |
 |---|---|---|---|---|
@@ -58,7 +59,7 @@ Gym/Sim 对齐实验只作为形成基础配置的前史，不纳入本台账主
 | M145 | 与 M45 同一训练族继续到 step 145,000，SHA256 `4b00f0d139b8c208a0844a6b92a5073ae76684b49d8d392628f028ee536fee13` | 与 M45 相同 | 候选和仿真预算与全粒子基线一致 | 检验继续训练是否改善 Top-1/Oracle |
 | MF50 | MultiDex-filtered Barrett/ShadowHand balanced N=3/5，显式 step 50,000，SHA256 `0934a15218f0f35cfd978d207e5c374556c0f8afbfb597e0489795d15ae97cc5` | seen-48；仅 Barrett、ShadowHand；N=3/5；成功索引 allowlist；N=3/5 round-robin 平衡采样 | 4×RTX 4090；batch 128×累积4×4卡=2048；lr 2e-4；50k；seed 42；DDIM 50；PointNet + 6层 Transformer | 历史 v3/v4 模型；40,960粒子诊断；EAWQ与稳定性研究 |
 | PAR64 | partial-only AR K=128，显式 step 64,000，SHA256 `1516d96091e91d19c9e177a9a5aeda34fece16ed37983b9385868d0a1d86cfb8` | MultiDex seen-48成功抓取K=128 allowlist；N=2/3/5；每次随机view-facing 50% crop；完整几何归一化 | 4×RTX 4090；batch 192×4卡=768；lr 8e-4；64k；seed 20260903；DDIM 50/点；AR逐点生成；由full-PC 64k warm start | 历史v5模型；完整OOD-10结果未运行 |
-| MFP56 | mixed full/partial AR K=128，显式 step 56,000，SHA256 `05bd542bb0c10a74ed8dafd7586a58ceedb17097dd08eb344011bb91e98516b4` | 与PAR64同一K=128体系；完整点云50%、synthetic partial 50%；两者均用完整几何归一化；N=2/3/5 | 4×RTX 4090；batch 192×4卡=768；lr 2e-4；从上一mixed阶段step-8k model warm start后执行56k新更新；seed 20260905；DDIM 50/点 | 当前v6模型；完整OOD-10结果待运行 |
+| MFP56 | mixed full/partial AR K=128，显式 step 56,000，SHA256 `05bd542bb0c10a74ed8dafd7586a58ceedb17097dd08eb344011bb91e98516b4` | 与PAR64同一K=128体系；完整点云50%、synthetic partial 50%；两者均用完整几何归一化；N=2/3/5 | 4×RTX 4090；batch 192×4卡=768；lr 2e-4；从上一mixed阶段step-8k model warm start后执行56k新更新；seed 20260905；DDIM 50/点 | 历史v6模型；冻结时完整OOD-10结果待运行 |
 
 M45 训练跑到50k，但 45k 的 validation total 最低，因此历史主实验选择
 `best_val.pt`。MF50 则按当前冻结定义显式选择 step-50k，不使用 `latest.pt` 或
@@ -76,19 +77,19 @@ M45 训练跑到50k，但 45k 的 validation total 最低，因此历史主实�
 
 ### 4.2 候选预算
 
-v1–v4主线每物体/手为64 sets；v5/v6固定为32 sets。其余预算如下：
+v1–v4主线每物体/手为64 sets；v5–v7固定为32 sets。其余预算如下：
 
 | 参数 | 值 |
 |---|---:|
-| 每物体、每手 diffusion contact sets | v5/v6为32；v1–v4为64 |
+| 每物体、每手 diffusion contact sets | v5–v7为32；v1–v4为64 |
 | 每 contact set FK particles | 32 |
 | 每粒子 FK steps | 400 |
 | Diffusion sampler | DDIM，50 steps |
-| FK 后进入解析排序的粒子 | v1/v2为历史Top-1；v3–v6保留全部32 |
+| FK 后进入解析排序的粒子 | v1/v2为历史Top-1；v3–v7保留全部32 |
 | 每 contact set 最终进入仿真的候选 | 1 |
-| 每手 OOD-10 Top-1 trial | v5/v6为320；v1–v4为640 |
-| 双手 OOD-10 Top-1 trial | 1,280 |
-| 双手全粒子 trial | 40,960 |
+| 每手 OOD-10 Top-1 trial | v5–v7为320；v1–v4为640 |
+| 双手 OOD-10 Top-1 trial | v5–v7为640；v1–v4为1,280 |
+| 双手解析粒子数（不等于正式PhysX次数） | v5–v7为20,480；v1–v4为40,960 |
 
 FK 使用精简六类能量框架：contact、点云穿透 mean+CVaR、self-collision
 mean+CVaR、approach、joint prior、palm unsigned distance。v4中两手的palm
@@ -474,6 +475,28 @@ O10/I20、D(R,O)资产与GPU PhysX参数均与v5完全一致。冻结时没有v6
 权威定义：[`BASIC_EXPERIMENT_CONFIG_PROMPT.md`](../docs/BASIC_EXPERIMENT_CONFIG_PROMPT.md)、
 [`basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml`](../configs/basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml)。
 
+### 5.18 2026-09-12：v7冻结
+
+只替换模型：FetchBench仿真深度相机partial60%、随机裁剪partial20%、full20%
+混合续训的AR K=128模型。原MultiDex接触标签allowlist保留；“伪真实”指相机
+观测条件，非真机采集，也非新增FetchBench抬升成功监督。
+
+远端来源：`/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/contact_ar_success_k128_real60_synth20_full20_from_mixed56k_lr5e5_gb768_32k_4x4090/model/checkpoints/best_val.pt`。
+仓库副本`weights/v7/best_val.pt`，step32000、86,705,982 bytes，SHA256
+`c55badbd2e1ce7bc9cda9b58832e68003b4b757ee02eedee47e01e697c7ec491`。
+best_val与显式32k模型参数相同；二进制序列化hash不同，v7固定best_val的hash。
+
+推理继续完整2048×3、完整中心/尺度归一化、AR DDIM50、raw接触反归一化后
+投影到完整点云。32sets×32粒子×400steps、两手w_palm=0、exact EAWQ、
+O10/I20、D(R,O)资产和六方向PhysX均继承v6。已用自动审计逐段比较配置。
+训练新阶段为4×4090、batch192/卡、有效batch768、lr5e-5、32k新更新。
+
+v7独立完整640次GPU PhysX尚未运行，其他FetchBench场景结果不迁移到本协议。
+同日CPU PhysX两手apple各1-set端到端冒烟完成：两手final/strict均1/1，
+invalid均0。最终位移Barrett约0.676mm、ShadowHand约0.096mm。
+详见[验收报告](BASIC_EXPERIMENT_V7_LOCAL_ACCEPTANCE_20260912.md)。
+入口见[完整流程](../docs/BASIC_EXPERIMENT_V7_WORKFLOW.md)。
+
 ## 6. 跨实验可比较结论
 
 ### 6.1 已有充分证据支持
@@ -495,7 +518,7 @@ O10/I20、D(R,O)资产与GPU PhysX参数均与v5完全一致。冻结时没有v6
 
 ### 6.2 目前不能声称
 
-1. 不能声称当前v6成功率为63.59%；这是历史v4模型粒子上的规则选择离线值。
+1. 不能声称当前v7成功率为63.59%；这是历史v4模型粒子上的规则选择离线值。
 2. 不能把本地 CPU v2 的 Barrett 77.19% / ShadowHand 37.50% 与论文 GPU baseline
    直接比较。
 3. 不能把 MF50 相对 M45/M145 的几个百分点差异纯归因于模型，因为 contact sets、
@@ -507,9 +530,9 @@ O10/I20、D(R,O)资产与GPU PhysX参数均与v5完全一致。冻结时没有v6
 
 ## 7. 当前正式基础实验还缺什么
 
-要完成当前v6的第一份可引用完整结果，至少需要：
+要完成当前v7的第一份可引用完整结果，至少需要：
 
-1. 在远端使用已校验的mixed full/partial AR `step_00056000.pt`；
+1. 使用已校验的FetchBench real60/synth20/full20 AR32k `weights/v7/best_val.pt`；
 2. 按冻结seed对OOD-10、Barrett/ShadowHand各生成32个contact sets，并记录
    checkpoint训练观测、实际full-cloud推理观测、full-normalization和free-XYZ投影
    provenance；
@@ -529,7 +552,7 @@ O10/I20、D(R,O)资产与GPU PhysX参数均与v5完全一致。冻结时没有v6
 
 - v4历史协议说明：[`BASIC_EXPERIMENT_DRO_ALIGNED.md`](../docs/BASIC_EXPERIMENT_DRO_ALIGNED.md)
 - 当前配置提示：[`BASIC_EXPERIMENT_CONFIG_PROMPT.md`](../docs/BASIC_EXPERIMENT_CONFIG_PROMPT.md)
-- 当前机器配置：[`basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml`](../configs/basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml)
+- 当前机器配置：[`v7 protocol`](../configs/basic_experiment_fetchbench_ar32k_eawq_o10i20_palm0_v7_protocol.yaml)
 - Barrett v4 FK配置：[`multigripper_fk_multidex_ood10_barrett_steps400_palm0_v4.yaml`](../configs/multigripper_fk_multidex_ood10_barrett_steps400_palm0_v4.yaml)
 - ShadowHand v4 FK配置：[`multigripper_fk_multidex_ood10_shadow_dro_steps400_palm0_v4.yaml`](../configs/multigripper_fk_multidex_ood10_shadow_dro_steps400_palm0_v4.yaml)
 - 掌心权重完整演进：[`FINAL_REPORT_ZH.md`](palm_distance_weight_lowrange_full_ood10_20260820/FINAL_REPORT_ZH.md)

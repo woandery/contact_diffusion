@@ -28,8 +28,9 @@ logs/
 *.npz
 *.npy
 
-# Frozen basic-experiment v6 model. Keep every other checkpoint ignored.
+# Frozen basic-experiment models. Keep every other checkpoint ignored.
 !weights/v6/step_00056000.pt
+!weights/v7/best_val.pt
 
 third_party/pointnet2_ops/build/
 third_party/pointnet2_ops/*.egg-info/

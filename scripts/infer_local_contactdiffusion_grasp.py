@@ -743,6 +743,31 @@ def sample_contact_targets(
     return target_contacts, raw_world_contacts, nearest_distance, normalization
 
 
+def training_observation_supports(dataset, observation: str) -> bool:
+    """Check actual mixture support without changing the inference condition."""
+    mode = str(dataset.get("object_observation_mode", "full"))
+    if mode == "mixed_full_synthetic_real_partial":
+        real = float(dataset.get("real_partial_probability", 0.0))
+        synthetic = float(dataset.get(
+            "synthetic_partial_probability", dataset.get("partial_probability", 0.0)
+        ))
+        if not (0.0 <= real <= 1.0 and 0.0 <= synthetic <= 1.0
+                and real + synthetic <= 1.0):
+            raise ValueError("Invalid full/synthetic/real-partial mixture probabilities")
+        return {
+            "full": real + synthetic < 1.0,
+            "synthetic_partial": synthetic > 0.0,
+            "real_partial": real > 0.0,
+        }.get(observation, False)
+    if mode == "mixed_full_synthetic_partial":
+        partial = float(dataset.get("partial_probability", 0.0))
+        return (
+            observation == "full" and partial < 1.0
+            or observation == "synthetic_partial" and partial > 0.0
+        )
+    return mode == observation
+
+
 def main() -> None:
     args = parse_args()
     config_path = resolve(args.config)
@@ -774,7 +799,10 @@ def main() -> None:
     checkpoint_uses_synthetic_partial = bool(
         is_autoregressive
         and checkpoint_object_observation_mode
-        in {"synthetic_partial", "mixed_full_synthetic_partial"}
+        in {
+            "synthetic_partial", "mixed_full_synthetic_partial",
+            "mixed_full_synthetic_real_partial",
+        }
     )
     if checkpoint_uses_synthetic_partial:
         if int(model_cfg.model.get("object_input_dim", -1)) != 3:
@@ -817,13 +845,8 @@ def main() -> None:
             else object_observation_mode
         )
     )
-    training_supports_inference_observation = bool(
-        object_observation_mode == checkpoint_object_observation_mode
-        or (
-            checkpoint_object_observation_mode
-            == "mixed_full_synthetic_partial"
-            and object_observation_mode in {"full", "synthetic_partial"}
-        )
+    training_supports_inference_observation = training_observation_supports(
+        model_cfg.dataset, object_observation_mode
     )
     if normalize_model_inputs and not is_autoregressive:
         raise ValueError(

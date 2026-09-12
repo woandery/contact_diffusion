@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 from utils.basic_experiment_protocol import (  # noqa: E402
     ALL_PARTICLE_PROTOCOL_ID,
     FILTERED50K_EAWQ_V3_PROTOCOL_ID,
+    FETCHBENCH_AR32K_V7_PROTOCOL_ID,
     MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
     MODEL_145K_ALL_PARTICLE_PROTOCOL_ID,
     O10I20_V2_PROTOCOL_ID,
@@ -240,6 +241,7 @@ def main() -> None:
                 ALL_PARTICLE_PROTOCOL_ID,
                 FILTERED50K_EAWQ_V3_PROTOCOL_ID,
                 MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
+                FETCHBENCH_AR32K_V7_PROTOCOL_ID,
                 MODEL_145K_ALL_PARTICLE_PROTOCOL_ID,
                 PARTIAL_AR64K_V5_PROTOCOL_ID,
                 PROTOCOL_ID,
@@ -249,6 +251,7 @@ def main() -> None:
                 O10I20_V2_PROTOCOL_ID,
                 FILTERED50K_EAWQ_V3_PROTOCOL_ID,
                 MIXED_FULL_PARTIAL_AR56K_V6_PROTOCOL_ID,
+                FETCHBENCH_AR32K_V7_PROTOCOL_ID,
                 PARTIAL_AR64K_V5_PROTOCOL_ID,
                 PROTOCOL_ID,
             }

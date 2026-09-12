@@ -1,0 +1,30 @@
+base_config: contact_ar_success_k128_mixedfullpartial_normfull_from8k_lr2e4_gb768_56k_4x4090.yaml
+
+dataset:
+  # Keep the original epsilon-AUC top-128 contact allowlist from the base
+  # config. Only the conditioning observation changes.
+  object_observation_mode: mixed_full_synthetic_real_partial
+  real_partial_probability: 0.6
+  synthetic_partial_probability: 0.2
+  partial_probability: 0.2
+  synthetic_partial_keep_ratio: 0.5
+  partial_normalization_reference: full
+  append_observation_type_feature: false
+  real_partial_min_raw_points: 1
+  real_partial_manifest: /inspire/qb-ilm2/project/zhanghanbo/public/mck/contact_diffusion/outputs/multidex_fetchbench_partial_soft_mu0p8_cov10/partial_views_coverage_ge10.csv.gz
+  real_partial_cache: /inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/.cache/contactdiffusion/fetchbench_partial/object_partial_pc_2048.npy
+
+train:
+  output_dir: outputs/contact_ar_success_k128_real60_synth20_full20_from_mixed56k_lr5e5_gb768_32k_4x4090/model
+  warmstart_model: outputs/contact_ar_success_k128_mixedfullpartial_normfull_from8k_lr2e4_gb768_56k_4x4090/model/checkpoints/best_val.pt
+  resume: null
+  batch_size: 192
+  gradient_accumulation_steps: 1
+  max_steps: 32000
+  lr: 0.00005
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  min_lr_ratio: 0.2
+  val_every: 4000
+  save_every: 4000
+  seed: 20260907

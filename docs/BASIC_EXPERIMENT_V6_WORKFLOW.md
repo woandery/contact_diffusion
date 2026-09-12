@@ -1,8 +1,9 @@
 # Basic Experiment v6 Workflow
 
-This is the collaborator-facing entry point for the current frozen basic
-experiment. Unless an experiment is explicitly marked as an ablation or a
-historical replay, "basic experiment" means v6.
+Historical version as of 2026-09-12. The current default is
+[v7](BASIC_EXPERIMENT_V7_WORKFLOW.md); the v6 protocol below is retained for reproducibility.
+
+This is the collaborator-facing entry point for the frozen v6 basic experiment.
 
 The authoritative machine-readable definition is
 [`basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml`](../configs/basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml).

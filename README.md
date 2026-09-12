@@ -3,25 +3,25 @@
 Standalone contact-point diffusion project extracted from the mixed dex grasp workspace.
 
 The core model package does not import `GraspGen`, `GenDexGrasp`, `SeqMultiGrasp`,
-or `dex-urdf` at runtime. The frozen v6 benchmark integration does consume
+or `dex-urdf` at runtime. The frozen v7 benchmark integration does consume
 external D(R,O)/GenDex assets through explicit runner paths. The default object
 encoder is `simple_pointnet`, and an optional bundled PointNet++ CUDA extension
 is available for `object_encoder_type: pointnet`.
 
-## Current basic experiment: v6
+## Current basic experiment: v7
 
 The frozen comparison pipeline is documented in
-[`docs/BASIC_EXPERIMENT_V6_WORKFLOW.md`](docs/BASIC_EXPERIMENT_V6_WORKFLOW.md).
+[`docs/BASIC_EXPERIMENT_V7_WORKFLOW.md`](docs/BASIC_EXPERIMENT_V7_WORKFLOW.md).
 It covers the bundled checkpoint, full-cloud autoregressive contact generation,
 FK pose optimization, exact EAWQ Top-1 selection, and D(R,O)-aligned Isaac Gym
 PhysX validation for Barrett and ShadowHand.
 
 Authoritative files:
 
-- Protocol: [`configs/basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml`](configs/basic_experiment_mixed_full_partial_ar56k_eawq_o10i20_palm0_v6_protocol.yaml)
-- Checkpoint: [`weights/v6/step_00056000.pt`](weights/v6/step_00056000.pt)
-- Formal OOD-10 runner: [`scripts/run_basic_experiment_v6_mixed_full_partial_ar56k_ood10_8gpu.sh`](scripts/run_basic_experiment_v6_mixed_full_partial_ar56k_ood10_8gpu.sh)
-- Local integration smoke: [`scripts/run_basic_experiment_v6_local_smoke.sh`](scripts/run_basic_experiment_v6_local_smoke.sh)
+- Protocol: [`configs/basic_experiment_fetchbench_ar32k_eawq_o10i20_palm0_v7_protocol.yaml`](configs/basic_experiment_fetchbench_ar32k_eawq_o10i20_palm0_v7_protocol.yaml)
+- Checkpoint: [`weights/v7/best_val.pt`](weights/v7/best_val.pt)
+- Formal OOD-10 runner: [`scripts/run_basic_experiment_v7_fetchbench_ar32k_ood10_8gpu.sh`](scripts/run_basic_experiment_v7_fetchbench_ar32k_ood10_8gpu.sh)
+- Local integration smoke: [`scripts/run_basic_experiment_v7_local_smoke.sh`](scripts/run_basic_experiment_v7_local_smoke.sh)
 - Chinese configuration summary: [`docs/BASIC_EXPERIMENT_CONFIG_PROMPT.md`](docs/BASIC_EXPERIMENT_CONFIG_PROMPT.md)
 
 ## Included
