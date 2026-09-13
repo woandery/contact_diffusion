@@ -1,0 +1,33 @@
+name: FetchPtdDROShadow
+
+defaults:
+  - FetchPtdDROBase
+  - _self_
+
+env:
+  robot:
+    type: franka_dro_shadowhand
+    asset_root: ./assets
+    urdf_file: urdf/dexterous/franka_dro_shadowhand.urdf
+    arm_dof_count: 7
+    hand_name: shadowhand
+    eef_link: forearm
+    eef_joint: dex_mount_joint
+    contact_links: [fftip, mftip, rftip, lftip, thtip]
+    # The stock FetchBench folded pose lets Shadow's long forearm/fingers
+    # overlap panda_link2.  This collision-free ready pose keeps the same hand
+    # root convention used by D(R,O).
+    arm_default_dof_pos: [0.0, -0.8, 0.0, -2.0, 0.0, 1.2, 0.8]
+    hand_default_dof_pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    hand_joint_gain: 3000.0
+    hand_joint_damp: 100.0
+    hand_joint_effort: 20.0
+
+solution:
+  pyompl:
+    robot_urdf: assets/urdf/dexterous/franka_dro_shadowhand.urdf
+    eef_link: forearm
+    active_joint_names: [panda_joint1, panda_joint2, panda_joint3, panda_joint4, panda_joint5, panda_joint6, panda_joint7]
+    hand_joint_names: [WRJ2, WRJ1, FFJ4, FFJ3, FFJ2, FFJ1, MFJ4, MFJ3, MFJ2, MFJ1, RFJ4, RFJ3, RFJ2, RFJ1, LFJ5, LFJ4, LFJ3, LFJ2, LFJ1, THJ5, THJ4, THJ3, THJ2, THJ1]
+  dro:
+    pregrasp_direction: [0.0, 0.0, -1.0]

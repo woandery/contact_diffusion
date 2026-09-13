@@ -1,0 +1,22 @@
+name: FetchPtdDRORenderBarrett
+
+defaults:
+  - FetchPtdDRORenderBase
+  - _self_
+
+env:
+  robot:
+    asset_root: ./assets
+    urdf_file: urdf/dexterous/dro_barrett_standalone.urdf
+    flip_visual_attachments: False
+    arm_dof_count: 6
+    hand_name: barrett
+    eef_link: bh_base_link
+    eef_joint: virtual_robot
+    contact_links: [bh_finger_33_link, bh_finger_13_link, bh_finger_23_link]
+    arm_default_dof_pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    # D(R,O) URDF order: j32, j33, j11, j12, j13, j21, j22, j23.
+    hand_default_dof_pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    hand_joint_gain: 1000.0
+    hand_joint_damp: 200.0
+    hand_joint_effort: 80.0

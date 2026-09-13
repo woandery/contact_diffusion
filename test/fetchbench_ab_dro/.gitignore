@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+runtime/
+results/
+*.pt
+*.pth
+*.safetensors
+*.mp4
+*.npy
+*.npz
+*.tar.gz

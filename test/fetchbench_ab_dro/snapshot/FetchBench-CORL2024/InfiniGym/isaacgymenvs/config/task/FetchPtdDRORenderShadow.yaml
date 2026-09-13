@@ -1,0 +1,28 @@
+name: FetchPtdDRORenderShadow
+
+defaults:
+  - FetchPtdDRORenderBase
+  - _self_
+
+env:
+  robot:
+    asset_root: ./assets
+    urdf_file: urdf/dexterous/dro_shadowhand_standalone.urdf
+    flip_visual_attachments: False
+    arm_dof_count: 6
+    hand_name: shadowhand
+    eef_link: forearm
+    eef_joint: virtual_robot
+    contact_links: [fftip, mftip, rftip, lftip, thtip]
+    arm_default_dof_pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    hand_default_dof_pos: [
+      0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0
+    ]
+    hand_joint_gain: 1000.0
+    hand_joint_damp: 200.0
+    hand_joint_effort: 20.0

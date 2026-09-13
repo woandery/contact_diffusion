@@ -1,0 +1,3 @@
+# Offline tests only; not the GPU/Isaac/SAM3D runtime dependency set.
+numpy>=1.23,<2
+PyYAML>=6,<7

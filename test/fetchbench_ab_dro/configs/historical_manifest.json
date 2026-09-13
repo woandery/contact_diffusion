@@ -1,0 +1,106 @@
+{
+  "schema": "fetchbench-multiscene-ab-dro-v1",
+  "project_root": "/inspire/qb-ilm2/project/zhanghanbo/public/mck",
+  "runtime": {
+    "contact_python": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/miniconda3/envs/contactdiff/bin/python",
+    "dro_python": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/miniconda3/envs/contactdiff/bin/python",
+    "sam3d_python": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/miniconda3/envs/sam3d-objects/bin/python",
+    "dro_root": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/dro_grasp_reproduction/DRO-Grasp",
+    "dro_pydeps": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/dro_grasp_reproduction/pydeps_py310",
+    "checkpoint_a": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/contact_ar_success_k128_real60_synth20_full20_from_mixed56k_lr5e5_gb768_32k_4x4090/model/checkpoints/best_val.pt",
+    "checkpoint_b": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/contact_ar_success_k128_epsilonauc_fullpc_norm_warmk32_gb768_64k_8x4090/model/checkpoints/step_00064000.pt",
+    "checkpoint_dro": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/dro_grasp_reproduction/DRO-Grasp/ckpt/model/model_3robots_partial.pth",
+    "config_barrett": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/extension3_111view_ab4x4_dro64_20260910/configs/config_barrett_s4p4.yaml",
+    "config_shadow": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/extension3_111view_ab4x4_dro64_20260910/configs/config_shadow_s4p4.yaml",
+    "sam3d_root": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/sam-3d-objects",
+    "sam3d_config": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/sam-3d-objects/checkpoints/hf-download/checkpoints/pipeline.yaml"
+  },
+  "cases": [
+    {
+      "id": "cerealbox_shelf",
+      "scene": "RigidObjLayerShelf_4",
+      "scene_factory": "LayerShelfSceneFactory_32",
+      "task_config": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/FetchBench-CORL2024/Task/benchmark_eval/LayerShelf/LayerShelfSceneFactory_32/task_config.npz",
+      "task_index": 20,
+      "object_index": 1,
+      "observations": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/extension3_111view_ab4x4_dro64_20260910/observations_cv/cerealbox_shelf",
+      "legal_views": 79
+    },
+    {
+      "id": "shampoo_basket",
+      "scene": "RigidObjDrawerShelf_6",
+      "scene_factory": "DrawerShelfSceneFactory_28",
+      "task_config": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/FetchBench-CORL2024/Task/benchmark_eval/DrawerShelf/DrawerShelfSceneFactory_28/task_config.npz",
+      "task_index": 0,
+      "object_index": 1,
+      "observations": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/extension3_111view_ab4x4_dro64_20260910/observations_cv/shampoo_basket",
+      "legal_views": 45
+    },
+    {
+      "id": "shampoo_drawer",
+      "scene": "RigidObjDrawerShelf_6",
+      "scene_factory": "DrawerShelfSceneFactory_28",
+      "task_config": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/FetchBench-CORL2024/Task/benchmark_eval/DrawerShelf/DrawerShelfSceneFactory_28/task_config.npz",
+      "task_index": 10,
+      "object_index": 1,
+      "observations": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/extension3_111view_ab4x4_dro64_20260910/observations_cv/shampoo_drawer",
+      "legal_views": 48
+    }
+  ],
+  "experiment_protocol": {
+    "candidate_views": 111,
+    "radii_m": [
+      1.0,
+      1.5,
+      2.0
+    ],
+    "elevations_deg": [
+      -90,
+      -60,
+      -30,
+      0,
+      30,
+      60,
+      90
+    ],
+    "azimuths_deg": [
+      -90,
+      -60,
+      -30,
+      0,
+      30,
+      60,
+      90
+    ],
+    "deduplicate_poles": true,
+    "single_view_only": true,
+    "sets": 4,
+    "particles": 4,
+    "fk_steps": 200,
+    "env_steps": 200,
+    "methods": [
+      "A",
+      "B",
+      "DRO"
+    ],
+    "hands": [
+      "barrett",
+      "shadowhand"
+    ],
+    "physics": "CPU PhysX",
+    "record_video": false,
+    "candidate_definition_reference": "docs/CANDLE_111VIEW_AB_EXPERIMENT_SPEC_20260908.md",
+    "support_center_policy": "Must resolve and save per scene; no silent use of object center",
+    "status": "running",
+    "dro_candidates": 64,
+    "primary_success": "final_object_lift_m >= 0.10",
+    "gpus": [
+      0,
+      1
+    ],
+    "cpu_physx": true,
+    "schedule": "AB_generation_and_validation_before_DRO",
+    "camera_pointmap_convention": "opencv",
+    "old_proxy_cache_reused": false
+  }
+}
