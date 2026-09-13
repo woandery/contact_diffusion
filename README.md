@@ -23,6 +23,7 @@ Authoritative files:
 - Formal OOD-10 runner: [`scripts/run_basic_experiment_v7_fetchbench_ar32k_ood10_8gpu.sh`](scripts/run_basic_experiment_v7_fetchbench_ar32k_ood10_8gpu.sh)
 - Local integration smoke: [`scripts/run_basic_experiment_v7_local_smoke.sh`](scripts/run_basic_experiment_v7_local_smoke.sh)
 - Chinese configuration summary: [`docs/BASIC_EXPERIMENT_CONFIG_PROMPT.md`](docs/BASIC_EXPERIMENT_CONFIG_PROMPT.md)
+- GitHub synchronization and collaboration: [`docs/GITHUB_SYNC_GUIDE_ZH.md`](docs/GITHUB_SYNC_GUIDE_ZH.md)
 
 ## Included
 
