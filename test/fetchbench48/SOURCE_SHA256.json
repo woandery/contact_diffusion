@@ -4,6 +4,7 @@
   "snapshot/ContactDiffusion/models/denoiser.py": "09e4a2ff89d17dbec898dc1e6b32c33a6bf81e5b7a51b908d9827c2f2240e00b",
   "snapshot/ContactDiffusion/models/diffusion.py": "5bf7d51730ef2152e9a87fb9b6765cc3bb2144102cf2f606e454d4852e274381",
   "snapshot/ContactDiffusion/models/losses.py": "8ab3e4765e4a130b90edb5d566b83bc6e3c7f9928ddfde862ba76cebb4187c24",
+  "snapshot/ContactDiffusion/outputs/fetchbench_four48_series_20260923/resume_batch34_20260924.py": "0319f92140e1f4ee70b4ede87052e44b9a5807a4c331ea68d2fc4f141545ef2e",
   "snapshot/ContactDiffusion/scripts/infer_contactdiffusion_camera_partial_v5_six.py": "3f559690d4e8c9cad2cb9663d7fc7572659e8e5bacd1e577edf4c91871f6138a",
   "snapshot/ContactDiffusion/scripts/infer_contactdiffusion_explicit_condition_v6.py": "1980c07d045ad5be0c75d88b9ab5b0a9217c432ede00c44b50101464762a4d71",
   "snapshot/ContactDiffusion/scripts/infer_local_contactdiffusion_grasp.py": "12ab2a05f627f2b145388da06848c81fab98ffdb39e800c5087f498002508ff6",
