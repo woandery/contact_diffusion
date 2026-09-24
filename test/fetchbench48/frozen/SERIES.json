@@ -1,0 +1,35 @@
+{
+  "cohorts": [
+    {
+      "index": 1,
+      "name": "fetchbench_v2_four48_batch1_ab_dro64_20260923",
+      "local": "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fetchbench_v2_four48_batch1_ab_dro64_20260923",
+      "remote": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/fetchbench_v2_four48_batch1_ab_dro64_20260923",
+      "design_lock_sha256": "e088d42785d1aca80ce1b76ebde23aacad67c75f33d0354d71a4d39101a5cc6d"
+    },
+    {
+      "index": 2,
+      "name": "fetchbench_v2_four48_batch2_ab_dro64_20260923",
+      "local": "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fetchbench_v2_four48_batch2_ab_dro64_20260923",
+      "remote": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/fetchbench_v2_four48_batch2_ab_dro64_20260923",
+      "design_lock_sha256": "e076f6a18cdd1662dc64f8adc29e88a1bcccfb49a2669ae0dd8405512bd4de6e"
+    },
+    {
+      "index": 3,
+      "name": "fetchbench_v2_four48_batch3_ab_dro64_20260923",
+      "local": "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fetchbench_v2_four48_batch3_ab_dro64_20260923",
+      "remote": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/fetchbench_v2_four48_batch3_ab_dro64_20260923",
+      "design_lock_sha256": "e3e6d0e9f8418c3273fe39470454242d603ee7c8a326a7acd749a45bcf1cb400"
+    },
+    {
+      "index": 4,
+      "name": "fetchbench_v2_four48_batch4_ab_dro64_20260923",
+      "local": "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fetchbench_v2_four48_batch4_ab_dro64_20260923",
+      "remote": "/inspire/qb-ilm2/project/zhanghanbo/public/mck/ContactDiffusion/outputs/fetchbench_v2_four48_batch4_ab_dro64_20260923",
+      "design_lock_sha256": "f164c503b8bf2f20b5e04588da6ca525ec2bb886a6e79983e08104a58dac2883"
+    }
+  ],
+  "allocation_sha256": "8490bef5ee260d1dbed6f71cfc0f09373101504133e2844ecd9c191dc785e229",
+  "order": "complete A/B and DRO; audit and publish execution statistics; then next cohort",
+  "no_outcome_based_replacement": true
+}

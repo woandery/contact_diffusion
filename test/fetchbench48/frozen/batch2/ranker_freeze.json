@@ -1,0 +1,32 @@
+{
+  "created": 1789483397.2298095,
+  "method": "hgb_diverse",
+  "training_sets": 4616,
+  "training_cases": [
+    "bowl_cellshelfdesk",
+    "stapler_shelfdesk",
+    "gamecontroller_table",
+    "beerbottle_basket",
+    "tissuebox_cabinet",
+    "camera_eketshelf"
+  ],
+  "feature_count": 502,
+  "unified_model_sha256": "a99208d511bd6dd6be51421b5744d9bacc71239922f1f0efd36e1e514a041987",
+  "original_model_sha256": "b9992c3402b32e87c6886557304168afdd7c0fa9cbbefe1cedf5b9fa076cd9d8",
+  "source_dataset_sha256": "da4a3134f1a49b3685ddb6fed164eca8863a4c5000cf8c09810907c26281751f",
+  "source_metadata_sha256": "6bbef28861245336fa6bb3ec2270b56138e593757ab60b17684377b695ed49cf",
+  "source_probe_script_sha256": "01279a73786c8f1608e3a9b3af2dbddadfdbbe9a53c5f72a71bff6c6d32b2bba",
+  "historical_policy": {
+    "created": 1789444607.6496186,
+    "sha256": {
+      "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fk_only_particle_ranking_20260915/geometry_closure_probe/ranker.joblib": "b9992c3402b32e87c6886557304168afdd7c0fa9cbbefe1cedf5b9fa076cd9d8",
+      "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fk_only_particle_ranking_20260915/geometry_closure_probe/results.json": "3bdad9f7db0f5e4a89ec834835dc44925b17268bc675e3e896a85de4ad1636f8",
+      "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/scripts/probe_fk_particle_ranking_geometry.py": "365f38e6bd94ede0f0acfc20933e8835f3411218846f96f208d914a0581e6759",
+      "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/scripts/probe_fk_particle_ranking_local.py": "a210c481695d7f6ad01eab27c2df25c4fd2e7097af936f9bc929c8b7959094fb",
+      "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/scripts/score_fk_particle_closure.py": "780fb8ebaec50895cff9b6d38607628f57b8f81c6ce7022a805a768cd32e7b6b",
+      "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/scripts/score_fk_particle_environment.py": "0cf43bec88ec78b764c7950cf5a44765ce3139359330f6979593870b9dbece3b"
+    },
+    "no_fit": true
+  },
+  "status": "Frozen for new scenes; not validated on the new targets; no new labels used"
+}

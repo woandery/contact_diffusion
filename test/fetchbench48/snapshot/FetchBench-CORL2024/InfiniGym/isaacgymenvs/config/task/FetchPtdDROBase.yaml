@@ -1,0 +1,63 @@
+name: FetchPtdDROBase
+prefix: DROMeshRRT
+
+defaults:
+  - FetchPointCloudBase
+  - _self_
+
+viewer:
+  camPos: [-2.0, 1.5, 2.5]
+  camTar: [0, 0, 0.7]
+  enable: True
+
+env:
+  numTasks: 5
+  armControlType: joint
+  gripperControlType: position
+  enableCameraSensors: True
+  aggregateMode: 0
+  aggregateBody: 80
+  aggregateShape: 2000
+
+solution:
+  pyompl:
+    planner: RRTConnect
+    single_timeout: 2
+    total_timeout: 4
+    ik_pos_th: 0.004
+    ik_rot_th: 0.04
+    ik_num_seed: 12
+    collision_activation_dist: 0.01
+    goal_threshold: 0.02
+    attach_offset_z: 0.0
+    valid_seg_frac: 0.005
+
+  dro:
+    root: ../../DRO-Grasp
+    python: /home/zhb1/miniconda3/envs/Dexgrasp/bin/python
+    inference_script: ../scripts/dro_generate_grasps.py
+    checkpoint: ../third_party/dro_ckpt/model/model_3robots_partial.pth
+    cache_dir: ../outputs/dro_fetchbench_cache
+    candidates: 8
+    points: 512
+    optimization_steps: 64
+    device: cuda:0
+    reuse_cache: True
+    min_goal_points: 64
+    # Keep the point-cloud distance as a ranking score.  A hard positive
+    # threshold rejects valid near-contact grasps on partially observed shelf
+    # geometry; exact robot/scene collision is checked by PyBullet below.
+    scene_clearance: 0.0
+    pregrasp_direction: [0.0, 0.0, -1.0]
+
+  init_steps: 20
+  eval_steps: 120
+  gripper_steps: 90
+  video_freq: 8
+  pre_grasp_offset: 0.08
+  retract_offset: 0.10
+  grasp_overshoot_ratio: 1.0
+  attach_goal_obj: True
+  num_step_repeat_per_plan_dt: 2
+  num_osc_repeat: 12
+  num_cartesian_steps: 8

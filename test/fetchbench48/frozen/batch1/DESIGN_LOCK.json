@@ -1,0 +1,18 @@
+{
+  "status": "prepared_not_started",
+  "sha256": {
+    "TASK_SELECTION.json": "2ecb9d32b02cf029ee0c4921eb40ccde6ca2bf862301b15af0b98288c658ec20",
+    "ranker_original_reference.joblib": "b9992c3402b32e87c6886557304168afdd7c0fa9cbbefe1cedf5b9fa076cd9d8",
+    "asset_roots.json": "c5501c63cee7fbd2a77d169bb70fbaa258fed466366f4834e46a72bd03f7ad6f",
+    "asset_roots.txt": "3dfb5ef46ae000a170020b9800970957d0a49e5bade45dd99cf6888f7f3b7167",
+    "ranker_freeze.json": "124522109ff60649a0cb6b43e249cce39fb0e36eaae5c273bd7e377be6e670e8",
+    "ranker_unified_frozen.joblib": "a99208d511bd6dd6be51421b5744d9bacc71239922f1f0efd36e1e514a041987",
+    "EXCLUSION_AUDIT.json": "e2d68ab50fae04c2266d5514993c89b76f77fcea0cbd824ad98e3c397ca1cbc0",
+    "ASSET_FILE_INVENTORY.json": "b7989623272722f898c7c3033fcc9ceb718a9190c96acde427ab68da9fa1f5ab",
+    "manifest.json": "44e41b9b3bd544e8b80049d709f6ace3e84bcb0030a4c038e6faec01cdbf9594",
+    "REVIEW.md": "1be7ad5e6fa2b936c79222ecabbfd1d230c9e3267bff09d1cc4131162a4e6fb5",
+    "AUTO_LABELS.json": "022a6ff902f1f55c7654e7c2350fc6859cdb7c985ed39d12cecf3814e1f912be",
+    "protocol_v2.json": "9662039af6345aaf4b480e366554fc26a44e919e7afc4bda374856c5394299bd"
+  },
+  "preparer_sha256": "6f19a5759ca37445b1ce8b68166ab77d2315481b3c6fe0954000d870b4dee587"
+}

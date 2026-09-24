@@ -1,0 +1,53 @@
+{
+  "protocol_id": "fetchbench_v2_four48_batch1_ab_dro64_20260923",
+  "parent": "fetchbench-v2-autolabel-full48-ab-dro64-20260920",
+  "amendments_authorized_before_outcomes": [
+    "User selected new target assets, scene reuse, env12 each, geometry quotas by availability on20260922"
+  ],
+  "status": "prepared_not_started",
+  "tasks": 48,
+  "tasks_per_geometry_environment_cell": "Availability-adapted, empty cells allowed; not a four-geometry balanced cohort",
+  "max_tasks_per_scene": 2,
+  "unique_canonical_target_assets": true,
+  "task_sampling": "Joint four-cohort allocation:192 unique new assets,12 tasks/environment/cohort,max2 tasks/scene/cohort; geometry balance by availability; no outcome selection",
+  "annotation": "Apply the already frozen v2 proxy rules to all 473 canonical asset paths remaining in the original held-out frame, reuse 64 hash-verified preliminary labels; all labels remain pending user review",
+  "annotation_seed": 2026092004,
+  "geometry_rules_source": "fetchbench_autolabel_pilot_v2_20260920.json:geometry (unchanged)",
+  "canonical_asset_key": "full benchmark_objects/category/asset_id path; duplicate basenames do not imply identical geometry",
+  "historical_exclusions": "All canonical assets from both prior48 cohorts and other cohorts in this series",
+  "feasibility": "unknown retained; no new geometric exclusion and no palm-distance gate. Pre-sampling exclude RoundTableSceneFactory_30 and_34: required scene assets missing locally and from original release ZIP. Record evidence and earlier unsealed draft, no new outcomes viewed.",
+  "maximum_views_per_task": 8,
+  "view_seed": 2026092002,
+  "views": "v1 selected-camera policy: original111, fraction_observable>=.05 and nonempty; fraction_full bins low/medium/high quotas2/4/2 with fixed fallback; preserve original legal index seeds; lock all views before SAM3D",
+  "generation": {
+    "contact_sets": 4,
+    "particles": 4,
+    "fk_steps": 200,
+    "fk_lr": 0.0075,
+    "diffusion_steps": 50,
+    "env_steps": 0,
+    "extra_fk_environment_weight": 0,
+    "dro_candidates": 64,
+    "dro_points": 512,
+    "dro_optimization_steps": 64
+  },
+  "inherit": "Previous frozen A/B checkpoints, E3 preprocessing and32-contact budget, DRO numerical retry seeds, frozen hgb_diverse ranker, all physical parameters",
+  "simulation": "CPU PhysX q_outer->q_inner->lift25cm; finite final_object_lift_m>=.10 only; no video",
+  "statistics": {
+    "primary": "SR10_exec: success/actual execution; A/B fixed Top1 only; DRO environment rejects excluded",
+    "secondary": "generation availability and filtered counts; descriptive task/hand equal-weight execution rates",
+    "cluster": "scene_instance across both cohorts if combining; no independent-view significance tests",
+    "interpretation": "Exploratory; auto labels pending review; no axisymmetric targets in this cohort; no legacy16-cell inference"
+  },
+  "budget_maximum": {
+    "observations": 384,
+    "cd_particle_poses": 24576,
+    "dro_candidates": 49152,
+    "cd_top1_slots_per_condition": 3072
+  },
+  "stopping": "Fixed48 tasks; no significance-based stopping or outcome-based replacement",
+  "future_confirmation": "Disclose all new scene and asset exposure; this run cannot become a fresh unseen confirmation after user review",
+  "task_seed": 2026092301,
+  "cohort_index": 1,
+  "joint_allocation_sha256": "8490bef5ee260d1dbed6f71cfc0f09373101504133e2844ecd9c191dc785e229"
+}

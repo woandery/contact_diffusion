@@ -1,0 +1,3476 @@
+{
+  "seed": 2026092301,
+  "objective": 196196.00002507385,
+  "outcome_blind": true,
+  "input_order_and_outcome_invariance_passed": true,
+  "prior_selection_hashes": {
+    "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fetchbench_v2_autolabel_full_ab_dro64_20260920/TASK_SELECTION.json": "9efdd5633c41f70ee92099e82f0314c32ddd3e418ef6414799806a579ed95ca5",
+    "/home/zhb1/mck/dexgrasp/FetchBench-CORL2024/outputs/fetchbench_v2_newassets48_ab_dro64_20260922/TASK_SELECTION.json": "f9fa4192b459f436ccec4fd3aa90dd08893fb5ff7495e3142acbe10033c5e940"
+  },
+  "cohorts": [
+    [
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35/task_051",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35",
+        "task_index": 51,
+        "object_index": 10,
+        "asset_id": "export_075",
+        "category": "infinigen_cup",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_cup/export_075",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_39/task_023",
+        "scene_instance": "Drawer/DrawerSceneFactory_39",
+        "task_index": 23,
+        "object_index": 8,
+        "asset_id": "ddb06b21fa60682333b76531c6a5deb5",
+        "category": "RoundTable",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/RoundTable/ddb06b21fa60682333b76531c6a5deb5",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_8/task_030",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_8",
+        "task_index": 30,
+        "object_index": 6,
+        "asset_id": "1b05971a4373c7d2463600025db2266",
+        "category": "Chair",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/1b05971a4373c7d2463600025db2266",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_16/task_039",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_16",
+        "task_index": 39,
+        "object_index": 3,
+        "asset_id": "87593298595dfd9824c5e2f912285e29",
+        "category": "Pencil",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Pencil/87593298595dfd9824c5e2f912285e29",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_40/task_038",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_40",
+        "task_index": 38,
+        "object_index": 11,
+        "asset_id": "4aac71c8560fe0a8848927fd73ed0548",
+        "category": "CeilingLamp",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CeilingLamp/4aac71c8560fe0a8848927fd73ed0548",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_3/task_017",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_3",
+        "task_index": 17,
+        "object_index": 2,
+        "asset_id": "348b2880842cbbca4ca84d60642ec7e8",
+        "category": "CoffeeTable",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CoffeeTable/348b2880842cbbca4ca84d60642ec7e8",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_40/task_058",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_40",
+        "task_index": 58,
+        "object_index": 6,
+        "asset_id": "fc45d911f8b87b1aca32354d178e0245",
+        "category": "5Shelves",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/5Shelves/fc45d911f8b87b1aca32354d178e0245",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_36/task_058",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_36",
+        "task_index": 58,
+        "object_index": 3,
+        "asset_id": "3bc766749e4e4a7fe3f7a74e12a274ef",
+        "category": "AccentChair",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/AccentChair/3bc766749e4e4a7fe3f7a74e12a274ef",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_15/task_000",
+        "scene_instance": "Drawer/DrawerSceneFactory_15",
+        "task_index": 0,
+        "object_index": 14,
+        "asset_id": "9f4873a60ae89fd128e5801caf6d8102",
+        "category": "LampPost",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/LampPost/9f4873a60ae89fd128e5801caf6d8102",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_6/task_004",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_6",
+        "task_index": 4,
+        "object_index": 14,
+        "asset_id": "cfac66fe0cec664a8069dabf6dffa846",
+        "category": "TV",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TV/cfac66fe0cec664a8069dabf6dffa846",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_20/task_023",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_20",
+        "task_index": 23,
+        "object_index": 13,
+        "asset_id": "17079f40cfdc719a3f7d5255ff865380",
+        "category": "Plate",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Plate/17079f40cfdc719a3f7d5255ff865380",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "EketShelf/EketShelfSceneFactory_37/task_005",
+        "scene_instance": "EketShelf/EketShelfSceneFactory_37",
+        "task_index": 5,
+        "object_index": 7,
+        "asset_id": "dd7edcc6886e4c8d839c16519e5a042e",
+        "category": "WallArt",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/WallArt/dd7edcc6886e4c8d839c16519e5a042e",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_35/task_008",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_35",
+        "task_index": 8,
+        "object_index": 9,
+        "asset_id": "c3134ae6fd6691d7db039d8689a74349",
+        "category": "EndTable",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/EndTable/c3134ae6fd6691d7db039d8689a74349",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_28/task_053",
+        "scene_instance": "Drawer/DrawerSceneFactory_28",
+        "task_index": 53,
+        "object_index": 8,
+        "asset_id": "5555cf0638339605f0fb3e3d2a0d34c9",
+        "category": "Nightstand",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Nightstand/5555cf0638339605f0fb3e3d2a0d34c9",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_12/task_038",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_12",
+        "task_index": 38,
+        "object_index": 9,
+        "asset_id": "751d61e1d2cbbeaebdcc459b19e43a6",
+        "category": "Chaise",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chaise/751d61e1d2cbbeaebdcc459b19e43a6",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_21/task_000",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_21",
+        "task_index": 0,
+        "object_index": 0,
+        "asset_id": "91b738d40201bf18a413908c0e169330",
+        "category": "OfficeChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/OfficeChair/91b738d40201bf18a413908c0e169330",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_6/task_018",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_6",
+        "task_index": 18,
+        "object_index": 0,
+        "asset_id": "export_113",
+        "category": "infinigen_pot",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_pot/export_113",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_40/task_015",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_40",
+        "task_index": 15,
+        "object_index": 3,
+        "asset_id": "89c6ad5e5223d29f112ca50c8eb86c95",
+        "category": "Oven",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Oven/89c6ad5e5223d29f112ca50c8eb86c95",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_29/task_009",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_29",
+        "task_index": 9,
+        "object_index": 13,
+        "asset_id": "a0979e4a6ac08382d4d8765e3910f617",
+        "category": "TrashBin",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TrashBin/a0979e4a6ac08382d4d8765e3910f617",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_15/task_015",
+        "scene_instance": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_15",
+        "task_index": 15,
+        "object_index": 7,
+        "asset_id": "7565e6f425dd6d376d987ae9a225629c",
+        "category": "Bag",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bag/7565e6f425dd6d376d987ae9a225629c",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_20/task_001",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_20",
+        "task_index": 1,
+        "object_index": 8,
+        "asset_id": "b205193da0a33b6da9f103167dafc5c0",
+        "category": "FloorLamp",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/FloorLamp/b205193da0a33b6da9f103167dafc5c0",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_39/task_025",
+        "scene_instance": "Drawer/DrawerSceneFactory_39",
+        "task_index": 25,
+        "object_index": 3,
+        "asset_id": "b0c37b379725feec97ed2c3bf3711e68",
+        "category": "DiningTable",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DiningTable/b0c37b379725feec97ed2c3bf3711e68",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_28/task_051",
+        "scene_instance": "Drawer/DrawerSceneFactory_28",
+        "task_index": 51,
+        "object_index": 1,
+        "asset_id": "export_044",
+        "category": "infinigen_plantcontainer",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_plantcontainer/export_044",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_11/task_007",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_11",
+        "task_index": 7,
+        "object_index": 2,
+        "asset_id": "c6fd613a4583b17311fc2b865c2a185b",
+        "category": "Rug",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Rug/c6fd613a4583b17311fc2b865c2a185b",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "EketShelf/EketShelfSceneFactory_0/task_016",
+        "scene_instance": "EketShelf/EketShelfSceneFactory_0",
+        "task_index": 16,
+        "object_index": 5,
+        "asset_id": "392f9b7a08c8ba8718c6f74ea0d202aa",
+        "category": "Refrigerator",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Refrigerator/392f9b7a08c8ba8718c6f74ea0d202aa",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_44/task_053",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_44",
+        "task_index": 53,
+        "object_index": 11,
+        "asset_id": "b89f31ddcd0e5ed13c2e50348f23d3d",
+        "category": "Armoire",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Armoire/b89f31ddcd0e5ed13c2e50348f23d3d",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_23/task_045",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_23",
+        "task_index": 45,
+        "object_index": 1,
+        "asset_id": "ffa8015ea7ab2e0b900fb9e135826c5e",
+        "category": "Guitar",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Guitar/ffa8015ea7ab2e0b900fb9e135826c5e",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_13/task_045",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_13",
+        "task_index": 45,
+        "object_index": 13,
+        "asset_id": "2fc19897a2f384ebc77d45d65dc3714",
+        "category": "DeskLamp",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DeskLamp/2fc19897a2f384ebc77d45d65dc3714",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_42/task_000",
+        "scene_instance": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_42",
+        "task_index": 0,
+        "object_index": 0,
+        "asset_id": "3b3a1bfd87c87a184b499a9d711de5a7",
+        "category": "Dresser",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Dresser/3b3a1bfd87c87a184b499a9d711de5a7",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_31/task_017",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_31",
+        "task_index": 17,
+        "object_index": 8,
+        "asset_id": "cfdfa58fe6773e4ba35a7666f0cfa5bb",
+        "category": "Barstool",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Barstool/cfdfa58fe6773e4ba35a7666f0cfa5bb",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_13/task_010",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_13",
+        "task_index": 10,
+        "object_index": 1,
+        "asset_id": "cfbe7f6285a388d5135639bc3ac0c21b",
+        "category": "PosterBed",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/PosterBed/cfbe7f6285a388d5135639bc3ac0c21b",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_23/task_041",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_23",
+        "task_index": 41,
+        "object_index": 10,
+        "asset_id": "b8c60360ce938833a3d3c99f62f9a788",
+        "category": "TV",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TV/b8c60360ce938833a3d3c99f62f9a788",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_48/task_000",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_48",
+        "task_index": 0,
+        "object_index": 12,
+        "asset_id": "fad118b32085f3f2c2c72e575af174cd",
+        "category": "DrinkingUtensil",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DrinkingUtensil/fad118b32085f3f2c2c72e575af174cd",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35/task_026",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35",
+        "task_index": 26,
+        "object_index": 9,
+        "asset_id": "8700ac31400f39646c1715a656a459af",
+        "category": "Pan",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Pan/8700ac31400f39646c1715a656a459af",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_29/task_056",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_29",
+        "task_index": 56,
+        "object_index": 5,
+        "asset_id": "2f2805663b44ae7c35836c728d324152",
+        "category": "Cabinet",
+        "placement": "rigid_obj_on_table",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Cabinet/2f2805663b44ae7c35836c728d324152",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_0/task_010",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_0",
+        "task_index": 10,
+        "object_index": 11,
+        "asset_id": "efe326ac3cbc1a977b076baeaedfec9b",
+        "category": "SingleBed",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/SingleBed/efe326ac3cbc1a977b076baeaedfec9b",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_15/task_039",
+        "scene_instance": "Drawer/DrawerSceneFactory_15",
+        "task_index": 39,
+        "object_index": 2,
+        "asset_id": "export_059",
+        "category": "infinigen_spoon",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_spoon/export_059",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_23/task_028",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_23",
+        "task_index": 28,
+        "object_index": 14,
+        "asset_id": "export_140",
+        "category": "infinigen_wineglass",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_wineglass/export_140",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_5/task_003",
+        "scene_instance": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_5",
+        "task_index": 3,
+        "object_index": 11,
+        "asset_id": "ef0eefeefe7b2b2ec19c30aa3956807a",
+        "category": "PSP",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/PSP/ef0eefeefe7b2b2ec19c30aa3956807a",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_21/task_045",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_21",
+        "task_index": 45,
+        "object_index": 14,
+        "asset_id": "6372c4d2e046d0fd7d3aa3bae1f7b494",
+        "category": "Plate",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Plate/6372c4d2e046d0fd7d3aa3bae1f7b494",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_8/task_035",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_8",
+        "task_index": 35,
+        "object_index": 7,
+        "asset_id": "6229c3883a77a702a0cd627c4ce0de5e",
+        "category": "Bird",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bird/6229c3883a77a702a0cd627c4ce0de5e",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_3/task_050",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_3",
+        "task_index": 50,
+        "object_index": 11,
+        "asset_id": "export_146",
+        "category": "infinigen_foodbag",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_foodbag/export_146",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_44/task_000",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_44",
+        "task_index": 0,
+        "object_index": 5,
+        "asset_id": "a0eaf21e93e176c861af36d49e6d6f51",
+        "category": "TableLamp",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TableLamp/a0eaf21e93e176c861af36d49e6d6f51",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_30/task_012",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_30",
+        "task_index": 12,
+        "object_index": 7,
+        "asset_id": "export_083",
+        "category": "infinigen_spoon",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_spoon/export_083",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_48/task_049",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_48",
+        "task_index": 49,
+        "object_index": 8,
+        "asset_id": "d3020443d08ade03c60d786d2f20153c",
+        "category": "ChestOfDrawers",
+        "placement": "rigid_obj_on_table",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/ChestOfDrawers/d3020443d08ade03c60d786d2f20153c",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Desk/DeskSceneFactory_25/task_020",
+        "scene_instance": "Desk/DeskSceneFactory_25",
+        "task_index": 20,
+        "object_index": 11,
+        "asset_id": "12f4d8c20ef311d988dcbe86402c7c15",
+        "category": "Recliner",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Recliner/12f4d8c20ef311d988dcbe86402c7c15",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_29/task_029",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_29",
+        "task_index": 29,
+        "object_index": 8,
+        "asset_id": "fc32f33c278a4e16b057261be64dfc5",
+        "category": "Barstool",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Barstool/fc32f33c278a4e16b057261be64dfc5",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_8/task_057",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_8",
+        "task_index": 57,
+        "object_index": 7,
+        "asset_id": "54c646ab27c11ddbd6e6eaeb114382d5",
+        "category": "Laptop",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Laptop/54c646ab27c11ddbd6e6eaeb114382d5",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      }
+    ],
+    [
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_46/task_057",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_46",
+        "task_index": 57,
+        "object_index": 0,
+        "asset_id": "5de44637f845f47f71788fb8089f3030",
+        "category": "QueenBed",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/QueenBed/5de44637f845f47f71788fb8089f3030",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_26/task_002",
+        "scene_instance": "Drawer/DrawerSceneFactory_26",
+        "task_index": 2,
+        "object_index": 7,
+        "asset_id": "450fd49e69534ee6d5032aaea433efa4",
+        "category": "Bench",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bench/450fd49e69534ee6d5032aaea433efa4",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_47/task_057",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_47",
+        "task_index": 57,
+        "object_index": 1,
+        "asset_id": "export_135",
+        "category": "infinigen_foodbag",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_foodbag/export_135",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_26/task_005",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_26",
+        "task_index": 5,
+        "object_index": 13,
+        "asset_id": "379f8b7266400f77c2126cfa5f04ec42",
+        "category": "Books",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Books/379f8b7266400f77c2126cfa5f04ec42",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_29/task_001",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_29",
+        "task_index": 1,
+        "object_index": 6,
+        "asset_id": "b1584e986a706101773b5d04f2ffad47",
+        "category": "Vase",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Vase/b1584e986a706101773b5d04f2ffad47",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_28/task_024",
+        "scene_instance": "Drawer/DrawerSceneFactory_28",
+        "task_index": 24,
+        "object_index": 3,
+        "asset_id": "bd76dee31cdad0f0bb62a53e25c6d701",
+        "category": "MediaPlayer",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/MediaPlayer/bd76dee31cdad0f0bb62a53e25c6d701",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_27/task_026",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_27",
+        "task_index": 26,
+        "object_index": 11,
+        "asset_id": "54054535e70d9ca0f91663a74ccd2338",
+        "category": "OfficeSideChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/OfficeSideChair/54054535e70d9ca0f91663a74ccd2338",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_20/task_053",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_20",
+        "task_index": 53,
+        "object_index": 0,
+        "asset_id": "104221f8a5b6676aa1dda33d5a7c8c38",
+        "category": "AccentTable",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/AccentTable/104221f8a5b6676aa1dda33d5a7c8c38",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_24/task_008",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_24",
+        "task_index": 8,
+        "object_index": 7,
+        "asset_id": "705824eed1eb58f0ee106795de609335",
+        "category": "Vase",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Vase/705824eed1eb58f0ee106795de609335",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_30/task_015",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_30",
+        "task_index": 15,
+        "object_index": 9,
+        "asset_id": "9e012312d1a9655b6fccfd70ebb75e45",
+        "category": "AccentChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/AccentChair/9e012312d1a9655b6fccfd70ebb75e45",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_30/task_042",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_30",
+        "task_index": 42,
+        "object_index": 0,
+        "asset_id": "8d11b63e0875afff3c25881b9672607c",
+        "category": "Paper",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Paper/8d11b63e0875afff3c25881b9672607c",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_8/task_007",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_8",
+        "task_index": 7,
+        "object_index": 12,
+        "asset_id": "9e42bbdbfe36680391e4d6c585a697a",
+        "category": "Nightstand",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Nightstand/9e42bbdbfe36680391e4d6c585a697a",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_48/task_034",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_48",
+        "task_index": 34,
+        "object_index": 10,
+        "asset_id": "fe571828e5b34d379d0a249a140da12",
+        "category": "5Shelves",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/5Shelves/fe571828e5b34d379d0a249a140da12",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_43/task_050",
+        "scene_instance": "Drawer/DrawerSceneFactory_43",
+        "task_index": 50,
+        "object_index": 11,
+        "asset_id": "8302f9cd5e454de85d878ba9ec3c0d6a",
+        "category": "Vase",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Vase/8302f9cd5e454de85d878ba9ec3c0d6a",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_16/task_045",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_16",
+        "task_index": 45,
+        "object_index": 2,
+        "asset_id": "3c5db21345130f0290f1eb8f29abcea8",
+        "category": "DeskLamp",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DeskLamp/3c5db21345130f0290f1eb8f29abcea8",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Desk/DeskSceneFactory_30/task_038",
+        "scene_instance": "Desk/DeskSceneFactory_30",
+        "task_index": 38,
+        "object_index": 0,
+        "asset_id": "586113a90de529aac46e621b9c7dbcd2",
+        "category": "Monitor",
+        "placement": "rigid_obj_on_table",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Monitor/586113a90de529aac46e621b9c7dbcd2",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_1/task_013",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_1",
+        "task_index": 13,
+        "object_index": 8,
+        "asset_id": "5e6c6769815668b817ba4f4092c6f41",
+        "category": "Vase",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Vase/5e6c6769815668b817ba4f4092c6f41",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_13/task_001",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_13",
+        "task_index": 1,
+        "object_index": 5,
+        "asset_id": "4b2c94c0356cad9113d6ba6128d0b598",
+        "category": "Cake",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Cake/4b2c94c0356cad9113d6ba6128d0b598",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13/task_031",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13",
+        "task_index": 31,
+        "object_index": 7,
+        "asset_id": "aa49b0d2ca4c87e63338ac60360eea98",
+        "category": "Refrigerator",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Refrigerator/aa49b0d2ca4c87e63338ac60360eea98",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_23/task_043",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_23",
+        "task_index": 43,
+        "object_index": 13,
+        "asset_id": "3768c89ac578b7bd290dcdea57874bf",
+        "category": "SingleBed",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/SingleBed/3768c89ac578b7bd290dcdea57874bf",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_26/task_053",
+        "scene_instance": "Drawer/DrawerSceneFactory_26",
+        "task_index": 53,
+        "object_index": 12,
+        "asset_id": "d2d90e352b2d0533ab0b172d4dea80cd",
+        "category": "Laptop",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Laptop/d2d90e352b2d0533ab0b172d4dea80cd",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_0/task_041",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_0",
+        "task_index": 41,
+        "object_index": 6,
+        "asset_id": "22eeb83ef02b2d33b6ad7859401587de",
+        "category": "FoodItem",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/FoodItem/22eeb83ef02b2d33b6ad7859401587de",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13/task_059",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13",
+        "task_index": 59,
+        "object_index": 14,
+        "asset_id": "4b4973bb15b2d1c766973efe1c67dd46",
+        "category": "VideoGameController",
+        "placement": "rigid_obj_on_table",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/VideoGameController/4b4973bb15b2d1c766973efe1c67dd46",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_47/task_058",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_47",
+        "task_index": 58,
+        "object_index": 5,
+        "asset_id": "5584ec27aa657c65ad329b1997e89fc7",
+        "category": "Dresser",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Dresser/5584ec27aa657c65ad329b1997e89fc7",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_8/task_031",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_8",
+        "task_index": 31,
+        "object_index": 11,
+        "asset_id": "e1f77c5cfd7ea402738e43095496b061",
+        "category": "DiningTable",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DiningTable/e1f77c5cfd7ea402738e43095496b061",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50/task_004",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50",
+        "task_index": 4,
+        "object_index": 5,
+        "asset_id": "3ba7dd61736e7a96270c0e719fe4ed97",
+        "category": "Vase",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Vase/3ba7dd61736e7a96270c0e719fe4ed97",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_40/task_042",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_40",
+        "task_index": 42,
+        "object_index": 2,
+        "asset_id": "3387e118aec3bcc17234af9602711ad",
+        "category": "Copier",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Copier/3387e118aec3bcc17234af9602711ad",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_20/task_047",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_20",
+        "task_index": 47,
+        "object_index": 6,
+        "asset_id": "cc07c9a3ad83e163e0fee7252d734e61",
+        "category": "Desk",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Desk/cc07c9a3ad83e163e0fee7252d734e61",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_25/task_045",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_25",
+        "task_index": 45,
+        "object_index": 13,
+        "asset_id": "b6a8f5a11d86e695157c9a82222f42ea",
+        "category": "2Shelves",
+        "placement": "rigid_obj_on_table",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/2Shelves/b6a8f5a11d86e695157c9a82222f42ea",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Desk/DeskSceneFactory_48/task_039",
+        "scene_instance": "Desk/DeskSceneFactory_48",
+        "task_index": 39,
+        "object_index": 12,
+        "asset_id": "9adb6a665f99addc8a4fd70ea4c8b4d9",
+        "category": "AccentChair",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/AccentChair/9adb6a665f99addc8a4fd70ea4c8b4d9",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Desk/DeskSceneFactory_48/task_005",
+        "scene_instance": "Desk/DeskSceneFactory_48",
+        "task_index": 5,
+        "object_index": 0,
+        "asset_id": "257fbf52b92e7679cc4cd6c58bd35c0c",
+        "category": "Mirror",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Mirror/257fbf52b92e7679cc4cd6c58bd35c0c",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_29/task_018",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_29",
+        "task_index": 18,
+        "object_index": 14,
+        "asset_id": "50ad83141272138a606b9bf35534b61b",
+        "category": "Bowl",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bowl/50ad83141272138a606b9bf35534b61b",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_48/task_004",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_48",
+        "task_index": 4,
+        "object_index": 9,
+        "asset_id": "b64537285045dea88430b7446f9e1252",
+        "category": "Cabinet",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Cabinet/b64537285045dea88430b7446f9e1252",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_29/task_014",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_29",
+        "task_index": 14,
+        "object_index": 12,
+        "asset_id": "a1133464132d65fcfce0ccdae30f97db",
+        "category": "SideChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/SideChair/a1133464132d65fcfce0ccdae30f97db",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_9/task_059",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_9",
+        "task_index": 59,
+        "object_index": 10,
+        "asset_id": "11183af410a81c186f525e79a05bbcb3",
+        "category": "Book",
+        "placement": "rigid_obj_on_table",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Book/11183af410a81c186f525e79a05bbcb3",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_23/task_025",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_23",
+        "task_index": 25,
+        "object_index": 8,
+        "asset_id": "df852c5541f26ab329bb14ab17758ae4",
+        "category": "Chair",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/df852c5541f26ab329bb14ab17758ae4",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_43/task_045",
+        "scene_instance": "Drawer/DrawerSceneFactory_43",
+        "task_index": 45,
+        "object_index": 14,
+        "asset_id": "e019633f413a50101191025061735ea3",
+        "category": "CoffeeTable",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CoffeeTable/e019633f413a50101191025061735ea3",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_40/task_042",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_40",
+        "task_index": 42,
+        "object_index": 10,
+        "asset_id": "264fb5faff89c160562964d222866dcd",
+        "category": "WallLamp",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/WallLamp/264fb5faff89c160562964d222866dcd",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_16/task_009",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_16",
+        "task_index": 9,
+        "object_index": 8,
+        "asset_id": "f4da1907ed935101ad5d0d05865f4466",
+        "category": "FloorLamp",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/FloorLamp/f4da1907ed935101ad5d0d05865f4466",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "EketShelf/EketShelfSceneFactory_37/task_022",
+        "scene_instance": "EketShelf/EketShelfSceneFactory_37",
+        "task_index": 22,
+        "object_index": 9,
+        "asset_id": "6a42375c01c8168f38f776a23f4bbc94",
+        "category": "Painting",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Painting/6a42375c01c8168f38f776a23f4bbc94",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_40/task_010",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_40",
+        "task_index": 10,
+        "object_index": 0,
+        "asset_id": "e72944489018b7b39360ca51ac4aef20",
+        "category": "Fireplace",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Fireplace/e72944489018b7b39360ca51ac4aef20",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35/task_000",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35",
+        "task_index": 0,
+        "object_index": 2,
+        "asset_id": "dbe4f9efc898ddd699dd0ef90f38e14f",
+        "category": "TV",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TV/dbe4f9efc898ddd699dd0ef90f38e14f",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_16/task_017",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_16",
+        "task_index": 17,
+        "object_index": 2,
+        "asset_id": "6da67be7e83afd3be3b927dfeefbac4e",
+        "category": "Laptop",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Laptop/6da67be7e83afd3be3b927dfeefbac4e",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_46/task_039",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_46",
+        "task_index": 39,
+        "object_index": 3,
+        "asset_id": "6a56fcd515b483e4c2ae46e81ac6a6e0",
+        "category": "Dresser",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Dresser/6a56fcd515b483e4c2ae46e81ac6a6e0",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_24/task_055",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_24",
+        "task_index": 55,
+        "object_index": 1,
+        "asset_id": "e2603611f6d3c661b9b2b9d5b2804865",
+        "category": "Speaker",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Speaker/e2603611f6d3c661b9b2b9d5b2804865",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_42/task_021",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_42",
+        "task_index": 21,
+        "object_index": 14,
+        "asset_id": "495d18f8ef510948871f77b17b1d465e",
+        "category": "Laptop",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Laptop/495d18f8ef510948871f77b17b1d465e",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Desk/DeskSceneFactory_30/task_009",
+        "scene_instance": "Desk/DeskSceneFactory_30",
+        "task_index": 9,
+        "object_index": 10,
+        "asset_id": "9cf9115751d3303ab2cebc8a17c61a34",
+        "category": "Curtain",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Curtain/9cf9115751d3303ab2cebc8a17c61a34",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35/task_056",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35",
+        "task_index": 56,
+        "object_index": 5,
+        "asset_id": "59cd90e24a68f3f5f1783a44a88d6274",
+        "category": "DiningTable",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DiningTable/59cd90e24a68f3f5f1783a44a88d6274",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      }
+    ],
+    [
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_8/task_009",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_8",
+        "task_index": 9,
+        "object_index": 4,
+        "asset_id": "33fcb31af4c4d039fac1db559484b15b",
+        "category": "Chair",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/33fcb31af4c4d039fac1db559484b15b",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_25/task_055",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_25",
+        "task_index": 55,
+        "object_index": 12,
+        "asset_id": "960c5c5bff2d3a4bbced73c51e99f8b2",
+        "category": "Bowl",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bowl/960c5c5bff2d3a4bbced73c51e99f8b2",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_28/task_013",
+        "scene_instance": "Drawer/DrawerSceneFactory_28",
+        "task_index": 13,
+        "object_index": 0,
+        "asset_id": "58e32cefd2f0ca13e938fdd9451c3206",
+        "category": "TableLamp",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TableLamp/58e32cefd2f0ca13e938fdd9451c3206",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_13/task_010",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_13",
+        "task_index": 10,
+        "object_index": 7,
+        "asset_id": "export_116",
+        "category": "infinigen_towel",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_towel/export_116",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_39/task_043",
+        "scene_instance": "Drawer/DrawerSceneFactory_39",
+        "task_index": 43,
+        "object_index": 6,
+        "asset_id": "b5eaf46797ada237738e43095496b061",
+        "category": "Table",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Table/b5eaf46797ada237738e43095496b061",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_23/task_045",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_23",
+        "task_index": 45,
+        "object_index": 1,
+        "asset_id": "ca0cb42682d0635abec3353c29751fdf",
+        "category": "CeilingLamp",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CeilingLamp/ca0cb42682d0635abec3353c29751fdf",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_21/task_058",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_21",
+        "task_index": 58,
+        "object_index": 4,
+        "asset_id": "a7ce5adc817940ab7eb50173c6da3ca0",
+        "category": "Book",
+        "placement": "rigid_obj_on_table",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Book/a7ce5adc817940ab7eb50173c6da3ca0",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_35/task_015",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_35",
+        "task_index": 15,
+        "object_index": 6,
+        "asset_id": "a16e051fe5507ae2396ca3dd50467ab",
+        "category": "Vase",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Vase/a16e051fe5507ae2396ca3dd50467ab",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_43/task_015",
+        "scene_instance": "Drawer/DrawerSceneFactory_43",
+        "task_index": 15,
+        "object_index": 1,
+        "asset_id": "defd0d07e00128e2e3f7a74e12a274ef",
+        "category": "Chair",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/defd0d07e00128e2e3f7a74e12a274ef",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_9/task_016",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_9",
+        "task_index": 16,
+        "object_index": 6,
+        "asset_id": "540af86a684230e2a8e5d0a97b47d383",
+        "category": "TV",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TV/540af86a684230e2a8e5d0a97b47d383",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_35/task_013",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_35",
+        "task_index": 13,
+        "object_index": 0,
+        "asset_id": "586f90ea05f62bd36379618f01f885e3",
+        "category": "Stapler",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Stapler/586f90ea05f62bd36379618f01f885e3",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_48/task_048",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_48",
+        "task_index": 48,
+        "object_index": 11,
+        "asset_id": "fa9ab8d3a340a7b8c397356311cbeea4",
+        "category": "Painting",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Painting/fa9ab8d3a340a7b8c397356311cbeea4",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_36/task_054",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_36",
+        "task_index": 54,
+        "object_index": 14,
+        "asset_id": "export_082",
+        "category": "infinigen_wineglass",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_wineglass/export_082",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_20/task_036",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_20",
+        "task_index": 36,
+        "object_index": 1,
+        "asset_id": "1b3a6e30a290786692777e64c6539781",
+        "category": "Dresser",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Dresser/1b3a6e30a290786692777e64c6539781",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_24/task_014",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_24",
+        "task_index": 14,
+        "object_index": 2,
+        "asset_id": "db4344ce8cc093e27d674b0299f0214e",
+        "category": "OfficeSideChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/OfficeSideChair/db4344ce8cc093e27d674b0299f0214e",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_0/task_008",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_0",
+        "task_index": 8,
+        "object_index": 8,
+        "asset_id": "5b0c679eb8a2156c4314179664d18101",
+        "category": "Mug",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Mug/5b0c679eb8a2156c4314179664d18101",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_20/task_051",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_20",
+        "task_index": 51,
+        "object_index": 14,
+        "asset_id": "2056cbd13e92764a61b3b6f2928a81b2",
+        "category": "Basket",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Basket/2056cbd13e92764a61b3b6f2928a81b2",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_47/task_041",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_47",
+        "task_index": 41,
+        "object_index": 9,
+        "asset_id": "e8c4ef4c74c631e83628c1e9941a8ab9",
+        "category": "CellPhone",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CellPhone/e8c4ef4c74c631e83628c1e9941a8ab9",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_20/task_014",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_20",
+        "task_index": 14,
+        "object_index": 2,
+        "asset_id": "8e76d0002b592ef91663a74ccd2338",
+        "category": "OfficeSideChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/OfficeSideChair/8e76d0002b592ef91663a74ccd2338",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_20/task_034",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_20",
+        "task_index": 34,
+        "object_index": 7,
+        "asset_id": "28f1c6c292c0190480360680c1602c7d",
+        "category": "DresserWithMirror",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DresserWithMirror/28f1c6c292c0190480360680c1602c7d",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50/task_041",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50",
+        "task_index": 41,
+        "object_index": 12,
+        "asset_id": "6475924415a3534111e85af13fa8bb9b",
+        "category": "Couch",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Couch/6475924415a3534111e85af13fa8bb9b",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_27/task_050",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_27",
+        "task_index": 50,
+        "object_index": 5,
+        "asset_id": "47af34e839efb8170c4dc29dcb8409",
+        "category": "Laptop",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Laptop/47af34e839efb8170c4dc29dcb8409",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_21/task_001",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_21",
+        "task_index": 1,
+        "object_index": 2,
+        "asset_id": "2d830fc20d8095cac2cc019b058015",
+        "category": "Piano",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Piano/2d830fc20d8095cac2cc019b058015",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_15/task_037",
+        "scene_instance": "Drawer/DrawerSceneFactory_15",
+        "task_index": 37,
+        "object_index": 4,
+        "asset_id": "879d3460059fb0a4432f848a780c0c89",
+        "category": "CeilingFan",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CeilingFan/879d3460059fb0a4432f848a780c0c89",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_47/task_043",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_47",
+        "task_index": 43,
+        "object_index": 11,
+        "asset_id": "eee8651057dacb532214ff09b39580e9",
+        "category": "Board",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Board/eee8651057dacb532214ff09b39580e9",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_31/task_051",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_31",
+        "task_index": 51,
+        "object_index": 4,
+        "asset_id": "4d8209e980d0c447f1783a44a88d6274",
+        "category": "Table",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Table/4d8209e980d0c447f1783a44a88d6274",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_42/task_006",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_42",
+        "task_index": 6,
+        "object_index": 3,
+        "asset_id": "e175bc785390e8f6c05575120a46cd3b",
+        "category": "Chair",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/e175bc785390e8f6c05575120a46cd3b",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_36/task_030",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_36",
+        "task_index": 30,
+        "object_index": 6,
+        "asset_id": "6151d492a777d00ea92a1b6e1dab7c04",
+        "category": "EndTable",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/EndTable/6151d492a777d00ea92a1b6e1dab7c04",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_29/task_013",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_29",
+        "task_index": 13,
+        "object_index": 2,
+        "asset_id": "24651c3767aa5089e19f4cee87249aca",
+        "category": "Mug",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Mug/24651c3767aa5089e19f4cee87249aca",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_43/task_000",
+        "scene_instance": "Drawer/DrawerSceneFactory_43",
+        "task_index": 0,
+        "object_index": 3,
+        "asset_id": "234510a95d7268ce98d5fc0473d00a1c",
+        "category": "Cabinet",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Cabinet/234510a95d7268ce98d5fc0473d00a1c",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_30/task_011",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_30",
+        "task_index": 11,
+        "object_index": 14,
+        "asset_id": "20b0a82068ae767c34cc22336880d45c",
+        "category": "OfficeChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/OfficeChair/20b0a82068ae767c34cc22336880d45c",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_31/task_023",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_31",
+        "task_index": 23,
+        "object_index": 5,
+        "asset_id": "a2d20c909ed9c6d85d723f8969b531b",
+        "category": "USBStick",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/USBStick/a2d20c909ed9c6d85d723f8969b531b",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_40/task_007",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_40",
+        "task_index": 7,
+        "object_index": 9,
+        "asset_id": "export_060",
+        "category": "infinigen_bowl",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_bowl/export_060",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_39/task_026",
+        "scene_instance": "Drawer/DrawerSceneFactory_39",
+        "task_index": 26,
+        "object_index": 4,
+        "asset_id": "45f56ad8c0f4059323166544c0deb60f",
+        "category": "Purse",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Purse/45f56ad8c0f4059323166544c0deb60f",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13/task_001",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13",
+        "task_index": 1,
+        "object_index": 2,
+        "asset_id": "972355f42223e6199cd431573238602d",
+        "category": "OfficeChair",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/OfficeChair/972355f42223e6199cd431573238602d",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_14/task_038",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_14",
+        "task_index": 38,
+        "object_index": 9,
+        "asset_id": "d4e30f4315178d7612dc13b662b5a3e9",
+        "category": "PianoKeyboard",
+        "placement": "rigid_obj_on_table",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/PianoKeyboard/d4e30f4315178d7612dc13b662b5a3e9",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_24/task_020",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_24",
+        "task_index": 20,
+        "object_index": 6,
+        "asset_id": "b8b8b3f36479ee2b58a4a16723b37599",
+        "category": "Plant",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Plant/b8b8b3f36479ee2b58a4a16723b37599",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_16/task_054",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_16",
+        "task_index": 54,
+        "object_index": 6,
+        "asset_id": "c179b4234e00c6d2ba58668e02b0b051",
+        "category": "CellPhone",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CellPhone/c179b4234e00c6d2ba58668e02b0b051",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_3/task_009",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_3",
+        "task_index": 9,
+        "object_index": 5,
+        "asset_id": "a85907a181cfe60f57010689eccc281e",
+        "category": "ChestOfDrawers",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/ChestOfDrawers/a85907a181cfe60f57010689eccc281e",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50/task_051",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50",
+        "task_index": 51,
+        "object_index": 0,
+        "asset_id": "d8526ba02ff99f0dcb2a965e75be701c",
+        "category": "TrashBin",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TrashBin/d8526ba02ff99f0dcb2a965e75be701c",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35/task_008",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35",
+        "task_index": 8,
+        "object_index": 7,
+        "asset_id": "ccd0c5e06744ad9a5ca7e476d2d4a26e",
+        "category": "Couch",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Couch/ccd0c5e06744ad9a5ca7e476d2d4a26e",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_14/task_026",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_14",
+        "task_index": 26,
+        "object_index": 5,
+        "asset_id": "65e9a2abb2a6fbb2b8183a4a81361b94",
+        "category": "WallArt",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/WallArt/65e9a2abb2a6fbb2b8183a4a81361b94",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_46/task_049",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_46",
+        "task_index": 49,
+        "object_index": 14,
+        "asset_id": "export_116",
+        "category": "infinigen_spoon",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_spoon/export_116",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_29/task_007",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_29",
+        "task_index": 7,
+        "object_index": 7,
+        "asset_id": "3071896180371f53eab2bd7322386ffd",
+        "category": "Basket",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Basket/3071896180371f53eab2bd7322386ffd",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_23/task_025",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_23",
+        "task_index": 25,
+        "object_index": 3,
+        "asset_id": "7cda501cac19747c5b085bee75c3436d",
+        "category": "Curtain",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Curtain/7cda501cac19747c5b085bee75c3436d",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Desk/DeskSceneFactory_30/task_013",
+        "scene_instance": "Desk/DeskSceneFactory_30",
+        "task_index": 13,
+        "object_index": 5,
+        "asset_id": "60e7807fae256b9edc0dec45107520e9",
+        "category": "Cake",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Cake/60e7807fae256b9edc0dec45107520e9",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_41/task_043",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_41",
+        "task_index": 43,
+        "object_index": 9,
+        "asset_id": "a95825396f2896a369b92c1c3cd65bd9",
+        "category": "MediaDiscs",
+        "placement": "rigid_obj_on_table",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/MediaDiscs/a95825396f2896a369b92c1c3cd65bd9",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_28/task_012",
+        "scene_instance": "Drawer/DrawerSceneFactory_28",
+        "task_index": 12,
+        "object_index": 12,
+        "asset_id": "export_122",
+        "category": "infinigen_spoon",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_spoon/export_122",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      }
+    ],
+    [
+      {
+        "task_id": "Drawer/DrawerSceneFactory_26/task_013",
+        "scene_instance": "Drawer/DrawerSceneFactory_26",
+        "task_index": 13,
+        "object_index": 1,
+        "asset_id": "ceff9f8c32f704ac35836c728d324152",
+        "category": "Vase",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Vase/ceff9f8c32f704ac35836c728d324152",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_25/task_011",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_25",
+        "task_index": 11,
+        "object_index": 10,
+        "asset_id": "9b034ad60f8eb5c9b822d48a43773c62",
+        "category": "QueenBed",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/QueenBed/9b034ad60f8eb5c9b822d48a43773c62",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35/task_023",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_35",
+        "task_index": 23,
+        "object_index": 8,
+        "asset_id": "1e89523035f87d0e770b3ff04033be4b",
+        "category": "Desk",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Desk/1e89523035f87d0e770b3ff04033be4b",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_11/task_041",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_11",
+        "task_index": 41,
+        "object_index": 8,
+        "asset_id": "d23187b889042017cc4cd6c58bd35c0c",
+        "category": "Mirror",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Mirror/d23187b889042017cc4cd6c58bd35c0c",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_13/task_029",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_13",
+        "task_index": 29,
+        "object_index": 10,
+        "asset_id": "42a81c2a4a261f1e1bb088904f7cb154",
+        "category": "TV",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TV/42a81c2a4a261f1e1bb088904f7cb154",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_35/task_014",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_35",
+        "task_index": 14,
+        "object_index": 3,
+        "asset_id": "bcc14b683930f8d33924adb2bfcfed72",
+        "category": "Desk",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Desk/bcc14b683930f8d33924adb2bfcfed72",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_25/task_058",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_25",
+        "task_index": 58,
+        "object_index": 9,
+        "asset_id": "16755fc794d5b2bb223a0abef958bcd0",
+        "category": "Chair",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/16755fc794d5b2bb223a0abef958bcd0",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_15/task_017",
+        "scene_instance": "Drawer/DrawerSceneFactory_15",
+        "task_index": 17,
+        "object_index": 1,
+        "asset_id": "3cd46f573c68e5fcfd41ffe96f6ef4b4",
+        "category": "PottedPlant",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/PottedPlant/3cd46f573c68e5fcfd41ffe96f6ef4b4",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "EketShelf/EketShelfSceneFactory_33/task_025",
+        "scene_instance": "EketShelf/EketShelfSceneFactory_33",
+        "task_index": 25,
+        "object_index": 2,
+        "asset_id": "3688cb05ea0b9eeed3c82c4b78ea6ccc",
+        "category": "Chair",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/3688cb05ea0b9eeed3c82c4b78ea6ccc",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_20/task_003",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_20",
+        "task_index": 3,
+        "object_index": 14,
+        "asset_id": "c077a18b48b06eab2250bf58700b4d8f",
+        "category": "Candle",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Candle/c077a18b48b06eab2250bf58700b4d8f",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50/task_034",
+        "scene_instance": "DoubleDoorCabinet/DoubleDoorCabinetSceneFactory_50",
+        "task_index": 34,
+        "object_index": 8,
+        "asset_id": "9a306a987bb4169e738e43095496b061",
+        "category": "Sink",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Sink/9a306a987bb4169e738e43095496b061",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_20/task_049",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_20",
+        "task_index": 49,
+        "object_index": 11,
+        "asset_id": "2eb4cfc59205bb3a147c505998f546dd",
+        "category": "Bowl",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bowl/2eb4cfc59205bb3a147c505998f546dd",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_0/task_011",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_0",
+        "task_index": 11,
+        "object_index": 3,
+        "asset_id": "a5b5ce7a32c146b3db039d8689a74349",
+        "category": "Bookcase",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bookcase/a5b5ce7a32c146b3db039d8689a74349",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_42/task_054",
+        "scene_instance": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_42",
+        "task_index": 54,
+        "object_index": 6,
+        "asset_id": "90fe992837b6236bc7646f006e91923f",
+        "category": "Pencil",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Pencil/90fe992837b6236bc7646f006e91923f",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_31/task_028",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_31",
+        "task_index": 28,
+        "object_index": 14,
+        "asset_id": "export_061",
+        "category": "infinigen_wineglass",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_wineglass/export_061",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_23/task_046",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_23",
+        "task_index": 46,
+        "object_index": 10,
+        "asset_id": "198683c1a50cebd134d6aa31914c287d",
+        "category": "Picture",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Picture/198683c1a50cebd134d6aa31914c287d",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_28/task_038",
+        "scene_instance": "Drawer/DrawerSceneFactory_28",
+        "task_index": 38,
+        "object_index": 2,
+        "asset_id": "dc39e53daa356c90b2644d7d4d7ea2c7",
+        "category": "Chair",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Chair/dc39e53daa356c90b2644d7d4d7ea2c7",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_23/task_055",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_23",
+        "task_index": 55,
+        "object_index": 10,
+        "asset_id": "f361b2c70470eb71b71df3a52d67a993",
+        "category": "AccentTable",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/AccentTable/f361b2c70470eb71b71df3a52d67a993",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "EketShelf/EketShelfSceneFactory_33/task_046",
+        "scene_instance": "EketShelf/EketShelfSceneFactory_33",
+        "task_index": 46,
+        "object_index": 0,
+        "asset_id": "6fb3e68b114f8c237525755bcbbbf0f",
+        "category": "Shirt",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Shirt/6fb3e68b114f8c237525755bcbbbf0f",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Desk/DeskSceneFactory_48/task_032",
+        "scene_instance": "Desk/DeskSceneFactory_48",
+        "task_index": 32,
+        "object_index": 13,
+        "asset_id": "a24e0ea758d43657a5e3e028709e0474",
+        "category": "FoodItem",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/FoodItem/a24e0ea758d43657a5e3e028709e0474",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_23/task_049",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_23",
+        "task_index": 49,
+        "object_index": 9,
+        "asset_id": "eed2fa156d662c79b26e384cea2f274e",
+        "category": "DiningTable",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DiningTable/eed2fa156d662c79b26e384cea2f274e",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_39/task_053",
+        "scene_instance": "Drawer/DrawerSceneFactory_39",
+        "task_index": 53,
+        "object_index": 13,
+        "asset_id": "33c8946d6f3309a4f90e92bb95494",
+        "category": "Desk",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Desk/33c8946d6f3309a4f90e92bb95494",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_26/task_025",
+        "scene_instance": "Drawer/DrawerSceneFactory_26",
+        "task_index": 25,
+        "object_index": 0,
+        "asset_id": "e9bd4ee553eb35c1d5ccc40b510e4bd",
+        "category": "Mug",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Mug/e9bd4ee553eb35c1d5ccc40b510e4bd",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_9/task_001",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_9",
+        "task_index": 1,
+        "object_index": 14,
+        "asset_id": "1ee865178cd126fe3bfd7d6656f05358",
+        "category": "FloorLamp",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/FloorLamp/1ee865178cd126fe3bfd7d6656f05358",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_23/task_044",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_23",
+        "task_index": 44,
+        "object_index": 4,
+        "asset_id": "9431f50b757b81fb15e0f0bc4a421e4a",
+        "category": "DiningTable",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/DiningTable/9431f50b757b81fb15e0f0bc4a421e4a",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_27/task_007",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_27",
+        "task_index": 7,
+        "object_index": 14,
+        "asset_id": "9ac71997e9eee1c1af5ada3edc49839",
+        "category": "MediaChest",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/MediaChest/9ac71997e9eee1c1af5ada3edc49839",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_23/task_026",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_23",
+        "task_index": 26,
+        "object_index": 9,
+        "asset_id": "6add1edc6d62c88af47ef2861d8bd548",
+        "category": "Curtain",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Curtain/6add1edc6d62c88af47ef2861d8bd548",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_41/task_019",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_41",
+        "task_index": 19,
+        "object_index": 9,
+        "asset_id": "e88b21faa1d937f3695cf5feae151847",
+        "category": "Desk",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Desk/e88b21faa1d937f3695cf5feae151847",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_12/task_039",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_12",
+        "task_index": 39,
+        "object_index": 5,
+        "asset_id": "26669c159324543dfb65771025dd39c4",
+        "category": "Picture",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Picture/26669c159324543dfb65771025dd39c4",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DeskWall/DeskWallSceneFactory_25/task_054",
+        "scene_instance": "DeskWall/DeskWallSceneFactory_25",
+        "task_index": 54,
+        "object_index": 8,
+        "asset_id": "dc627a12f69ae7d4738e43095496b061",
+        "category": "Sideboard",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Sideboard/dc627a12f69ae7d4738e43095496b061",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13/task_028",
+        "scene_instance": "SingleDoorCabinetDesk/SingleDoorCabinetDeskSceneFactory_13",
+        "task_index": 28,
+        "object_index": 3,
+        "asset_id": "765afae2c3ba46dacb2a965e75be701c",
+        "category": "TrashBin",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TrashBin/765afae2c3ba46dacb2a965e75be701c",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_43/task_027",
+        "scene_instance": "Drawer/DrawerSceneFactory_43",
+        "task_index": 27,
+        "object_index": 13,
+        "asset_id": "a5cafa3a913187dd8f9dd7647048a0c",
+        "category": "Stapler",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Stapler/a5cafa3a913187dd8f9dd7647048a0c",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_6/task_052",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_6",
+        "task_index": 52,
+        "object_index": 6,
+        "asset_id": "78906c8725c06f9327b990c5110f7107",
+        "category": "EndTable",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/EndTable/78906c8725c06f9327b990c5110f7107",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_48/task_005",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_48",
+        "task_index": 5,
+        "object_index": 2,
+        "asset_id": "export_056",
+        "category": "infinigen_towel",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_towel/export_056",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_9/task_024",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_9",
+        "task_index": 24,
+        "object_index": 1,
+        "asset_id": "export_124",
+        "category": "infinigen_vase",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_vase/export_124",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_30/task_006",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_30",
+        "task_index": 6,
+        "object_index": 13,
+        "asset_id": "1ab8202a944a6ff1de650492e45fb14f",
+        "category": "2Shelves",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/2Shelves/1ab8202a944a6ff1de650492e45fb14f",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "DrawerShelf/DrawerShelfSceneFactory_0/task_004",
+        "scene_instance": "DrawerShelf/DrawerShelfSceneFactory_0",
+        "task_index": 4,
+        "object_index": 5,
+        "asset_id": "export_143",
+        "category": "infinigen_foodbag",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_foodbag/export_143",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_5/task_034",
+        "scene_instance": "TriangleShelfDesk/TriangleShelfDeskSceneFactory_5",
+        "task_index": 34,
+        "object_index": 3,
+        "asset_id": "3f49e3df38acc6b0d3974d4fce0adc53",
+        "category": "Pencil",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Pencil/3f49e3df38acc6b0d3974d4fce0adc53",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "Drawer/DrawerSceneFactory_43/task_056",
+        "scene_instance": "Drawer/DrawerSceneFactory_43",
+        "task_index": 56,
+        "object_index": 5,
+        "asset_id": "7778506f7d1fc4a6db93252e6cb8fe64",
+        "category": "QueenBed",
+        "placement": "rigid_obj_in_drawer",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/QueenBed/7778506f7d1fc4a6db93252e6cb8fe64",
+        "environment": "drawer",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_1/task_023",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_1",
+        "task_index": 23,
+        "object_index": 4,
+        "asset_id": "bf5a04c6c94b62df38267d304ba10abc",
+        "category": "TV",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/TV/bf5a04c6c94b62df38267d304ba10abc",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_29/task_024",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_29",
+        "task_index": 24,
+        "object_index": 1,
+        "asset_id": "export_087",
+        "category": "infinigen_wineglass",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_wineglass/export_087",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LayerShelf/LayerShelfSceneFactory_43/task_015",
+        "scene_instance": "LayerShelf/LayerShelfSceneFactory_43",
+        "task_index": 15,
+        "object_index": 9,
+        "asset_id": "export_067",
+        "category": "infinigen_cup",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_cup/export_067",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_40/task_053",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_40",
+        "task_index": 53,
+        "object_index": 5,
+        "asset_id": "b6f30c63c946c286cf6897d8875cfd5e",
+        "category": "Mug",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Mug/b6f30c63c946c286cf6897d8875cfd5e",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_3/task_001",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_3",
+        "task_index": 1,
+        "object_index": 10,
+        "asset_id": "export_050",
+        "category": "infinigen_pan",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/infinigen_pan/export_050",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelfDesk/LargeShelfDeskSceneFactory_31/task_050",
+        "scene_instance": "LargeShelfDesk/LargeShelfDeskSceneFactory_31",
+        "task_index": 50,
+        "object_index": 2,
+        "asset_id": "95ac294f47fd7d87e0b49f27ced29e3",
+        "category": "Bowl",
+        "placement": "rigid_obj_on_table",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Bowl/95ac294f47fd7d87e0b49f27ced29e3",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "CellShelfDesk/CellShelfDeskSceneFactory_46/task_035",
+        "scene_instance": "CellShelfDesk/CellShelfDeskSceneFactory_46",
+        "task_index": 35,
+        "object_index": 2,
+        "asset_id": "c0fe7631c31547b31dd4e193654d2ee5",
+        "category": "VideoGameConsole",
+        "placement": "rigid_obj_on_shelf",
+        "geometry": "block",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/VideoGameConsole/c0fe7631c31547b31dd4e193654d2ee5",
+        "environment": "shelf_or_cabinet",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "RoundTable/RoundTableSceneFactory_41/task_024",
+        "scene_instance": "RoundTable/RoundTableSceneFactory_41",
+        "task_index": 24,
+        "object_index": 6,
+        "asset_id": "7b8cee15c14823463ff936510fe2e02f",
+        "category": "CellPhone",
+        "placement": "rigid_obj_on_table",
+        "geometry": "thin_or_slender",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/CellPhone/7b8cee15c14823463ff936510fe2e02f",
+        "environment": "table",
+        "frame_annotation_status": "not_yet_annotated"
+      },
+      {
+        "task_id": "LargeShelf/LargeShelfSceneFactory_3/task_020",
+        "scene_instance": "LargeShelf/LargeShelfSceneFactory_3",
+        "task_index": 20,
+        "object_index": 13,
+        "asset_id": "2f7b32a0806ed5f09429f6a938b3978d",
+        "category": "Sink",
+        "placement": "rigid_obj_in_basket",
+        "geometry": "complex",
+        "feasibility": {
+          "barrett": "unknown",
+          "shadowhand": "unknown"
+        },
+        "annotation_status": "auto_labeled_pending_user_review",
+        "asset_key": "benchmark_objects/Sink/2f7b32a0806ed5f09429f6a938b3978d",
+        "environment": "basket",
+        "frame_annotation_status": "not_yet_annotated"
+      }
+    ]
+  ]
+}

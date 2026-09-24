@@ -1,0 +1,135 @@
+name: FetchPtdDRORenderBase
+prefix: StaticGrasp
+
+defaults:
+  - FetchPointCloudBase
+  - _self_
+
+env:
+  numEnvs: 1
+  numTasks: null
+  armControlType: joint
+  gripperControlType: position
+  enableCameraSensors: True
+  aggregateMode: 0
+  aggregateBody: 80
+  aggregateShape: 2000
+
+solution:
+  # Run contact/closure/lift validation without creating a Vulkan renderer or
+  # Isaac camera sensors.  This is intended for compute-only GPU nodes; target
+  # geometry is read from goal_pointcloud_override instead of a live camera.
+  physics_only: False
+  task_index: 14
+  candidate_index: -1  # -1 uses collision rejection plus target-coverage ranking
+  visualize_top_k: 1  # >1 writes one directory per feasible candidate
+  render_pose: predict_q  # predict_q, outer_q, or inner_q
+  min_scene_clearance: 0.005
+  target_contact_distance: 0.02
+  highlight_target: True
+  hand_color: [0.85, 0.55, 0.65]
+  target_closeup_camera: True
+  target_closeup_offset: [-0.4, -0.4, 0.16]
+  # Optional radius around the trial's initial target position within which
+  # the close-up camera may follow the object.  This prevents severe
+  # penetration failures from dragging the camera through scene geometry.
+  target_closeup_max_tracking_displacement: null
+  settle_steps: 10
+  render_frames: 12
+  pointcloud_downscale: 1
+  # Optional .npy target cloud in robot-base coordinates. If unset, use the
+  # segmented visible cloud from the FetchBench cameras.
+  goal_pointcloud_override: null
+  # Provenance label written to result metadata when an override is used.
+  goal_pointcloud_override_source: override_pointcloud
+  # Optional .npy non-target scene cloud in robot-base coordinates. This lets
+  # physics-only experiments apply the same per-view point-cloud environment
+  # gate without enabling a renderer or silently falling back to an empty
+  # scene. The target and robot must already be excluded from this cloud.
+  scene_pointcloud_override: null
+  artifact_dir: ../outputs/dro_render
+  # Optional prepared ContactDiffusion/EAWQ manifest.  When set, inference and
+  # D(R,O)-specific candidate ranking are skipped and this named pose is mapped
+  # directly into the standalone hand by joint name.
+  external_prepared: null
+  external_object_name: ""
+  external_sample_index: 0  # -1 renders every sample and writes a contact sheet
+  external_pose: q_contact_euler
+  external_pointcloud: null
+  # ContactDiffusion lift validation first applies the point-cloud environment
+  # gate, then rejects any residual non-target rigid contact reported by PhysX.
+  external_max_environment_violation: 0.0001
+  # Object-only protocols such as ContactDiffusion v6 do not contain a
+  # precomputed FetchBench scene-collision metric.  Keep this true for the
+  # environment-refined pipeline; set false only when executing such poses and
+  # let the runtime PhysX contact rejection below provide the environment gate.
+  external_require_precomputed_environment: True
+  # Diagnostic-only fallback: if the hard point-cloud gate leaves fewer than
+  # visualize_top_k candidates, simulate the least-violating rejected poses.
+  # They remain constraint failures and can never count as successful grasps.
+  external_validate_infeasible: False
+  reject_runtime_environment_contacts: True
+
+  lift:
+    record_video: True
+    # Place the hand directly at outer_q and close in place.  Set this false
+    # only when reproducing the older radial retreat-and-approach trajectory.
+    direct_closure: True
+    # Legacy radial-pregrasp settings (ignored by direct_closure).
+    pregrasp_offset: 0.08
+    pregrasp_max_offset: 0.24
+    pregrasp_offset_increment: 0.04
+    pregrasp_hold_steps: 12
+    approach_steps: 45
+    open_to_outer_steps: 30
+    max_preclosure_object_displacement: 0.02
+    # Fully open only the flexion/closure DOFs. Preserve wrist pose, finger
+    # abduction, and other non-closing joints from the generated outer pose.
+    open_joint_positions:
+      barrett:
+        bh_j32_joint: 0.0
+        bh_j33_joint: 0.0
+        bh_j12_joint: 0.0
+        bh_j13_joint: 0.0
+        bh_j22_joint: 0.0
+        bh_j23_joint: 0.0
+      shadowhand:
+        FFJ3: 0.0
+        FFJ2: 0.0
+        FFJ1: 0.0
+        MFJ3: 0.0
+        MFJ2: 0.0
+        MFJ1: 0.0
+        RFJ3: 0.0
+        RFJ2: 0.0
+        RFJ1: 0.0
+        LFJ3: 0.0
+        LFJ2: 0.0
+        LFJ1: 0.0
+        THJ4: 0.0
+        THJ2: 0.0
+        THJ1: 0.0
+    outer_hold_steps: 12
+    close_steps: 45
+    close_hold_steps: 20
+    lift_steps: 60
+    final_hold_steps: 30
+    height: 0.25
+    success_height: 0.10
+    capture_stride: 2
+    video_fps: 30
+
+  dro:
+    root: ../../DRO-Grasp
+    python: /home/zhb1/miniconda3/envs/Dexgrasp/bin/python
+    inference_script: ../scripts/dro_generate_grasps.py
+    checkpoint: ../third_party/dro_ckpt/model/model_3robots_partial.pth
+    candidates: 8
+    points: 512
+    optimization_steps: 64
+    # Optional exact inference seed. When null, fall back to the task-local
+    # seed plus task index for compatibility with interactive runs.
+    seed: null
+    device: cuda:0
+    reuse_cache: True
+    min_goal_points: 64
